@@ -318,34 +318,65 @@ def create_app(
     @app.callback(
         Output("follow-active-store", "data"),
         Output("status-text", "children", allow_duplicate=True),
+        Output("main-chart", "figure", allow_duplicate=True),
         Input("main-chart", "relayoutData"),
         State("follow-checkbox", "value"),
         State("status-text", "children"),
+        State("main-chart", "figure"),
         prevent_initial_call=True,
     )
     def handle_viewport_change(
         relayout_data: dict,
         follow_value: list,
         current_status: str,
+        current_figure: dict,
     ) -> tuple:
-        """Detect when user navigates away from tail (disables follow mode)."""
-        if relayout_data is None or app._csv_indexer is None:
-            return no_update, no_update
+        """
+        Handle viewport changes (zoom/pan).
 
-        # Check if user performed a zoom/pan (not just hover)
-        if not any(key.startswith("xaxis.range") for key in relayout_data.keys()):
-            return no_update, no_update
+        For time-series, X-axis zoom should auto-scale Y to fit visible data.
+        This callback resets Y-axis to autorange when X changes.
+        """
+        if relayout_data is None:
+            return no_update, no_update, no_update
 
-        # If follow mode active, check if user navigated away from tail
-        if follow_value and "follow" in follow_value:
-            # For simplicity, any zoom/pan triggers "Paused" state
-            # A more sophisticated implementation would check if viewport
-            # end is within tail threshold of data end
-            if "Latest:" in current_status:
-                new_status = current_status.replace("Latest:", "Paused | Latest:")
-                return False, new_status
+        # Check if X-axis range changed (zoom or pan)
+        x_range_changed = any(
+            key.startswith("xaxis.range") for key in relayout_data.keys()
+        )
 
-        return no_update, no_update
+        # Check if this is a reset (autorange or double-click)
+        is_reset = (
+            relayout_data.get("xaxis.autorange") is True
+            or relayout_data.get("autosize") is True
+        )
+
+        # Handle Y-axis auto-scaling on X zoom
+        figure_update = no_update
+        if x_range_changed and current_figure and not is_reset:
+            # User zoomed X-axis - reset Y to autorange
+            # This ensures Y always fits the visible X range
+            updated_figure = dict(current_figure)
+            if "layout" in updated_figure:
+                layout = dict(updated_figure["layout"])
+                yaxis = dict(layout.get("yaxis", {}))
+                yaxis["autorange"] = True
+                # Remove any explicit range to trigger autorange
+                yaxis.pop("range", None)
+                layout["yaxis"] = yaxis
+                updated_figure["layout"] = layout
+                figure_update = updated_figure
+
+        # Handle follow mode pause
+        status_update = no_update
+        follow_update = no_update
+        if x_range_changed and app._csv_indexer is not None:
+            if follow_value and "follow" in follow_value:
+                if "Latest:" in current_status:
+                    status_update = current_status.replace("Latest:", "Paused | Latest:")
+                    follow_update = False
+
+        return follow_update, status_update, figure_update
 
     @app.callback(
         Output("main-chart", "figure", allow_duplicate=True),

@@ -1,257 +1,210 @@
 # CSV Chart Plotter
 
-Interactive time-series visualizer for large CSV datasets. GPU-accelerated plotting with native window integration.
+Interactive time-series visualizer for CSV datasets of any size. GPU-accelerated plotting with native window integration.
 
 ## Overview
 
-CSV Chart Plotter loads CSV files containing numeric time-series data and renders interactive charts in a native desktop window. Built for datasets with up to 1 million rows and 40 numeric columns.
+CSV Chart Plotter loads CSV files containing numeric time-series data and renders interactive charts in a native desktop window. The streaming architecture handles datasets of any size—memory consumption is bounded by display requirements, not data size.
 
 **Key Features:**
 
-- Handles datasets up to 1M rows without excessive memory consumption (<2GB)
-- GPU-accelerated rendering using Plotly ScatterGL (WebGL)
-- Interactive zoom/pan/legend controls
-- Automatic column type detection (numeric columns only)
-- Malformed CSV handling with row skipping
-- Native desktop window (no browser required)
-- Standalone executable compilation (no Python installation required)
+- **Streaming architecture** — handles arbitrarily large CSV files via on-demand reading with row indexing
+- **GPU-accelerated rendering** — Plotly ScatterGL (WebGL) for sub-100ms zoom/pan latency
+- **LTTB downsampling** — Largest-Triangle-Three-Buckets algorithm limits display to 4,000 points per trace
+- **Interactive controls** — time-range zoom (Y auto-scales), pan, legend toggle, hover tooltips
+- **Follow mode** — live file tail with 5-second debounced updates
+- **Native file dialog** — select CSV files without CLI; switch files without restart
+- **Light/dark themes** — switchable via UI
+- **Standalone executable** — Nuitka compilation for distribution without Python
 
 ## Installation
 
 ### Prerequisites
 
 - Python 3.13+ (via [UV](https://github.com/astral-sh/uv))
-- Windows OS (tested on Windows 11)
+- macOS, Windows, or Linux
 
 ### Setup with UV
 
-1. Clone repository:
+```bash
+# Clone repository
+git clone https://github.com/yourusername/csv-chart-plotter.git
+cd csv-chart-plotter
 
-   ```powershell
-   git clone https://github.com/yourusername/CsvChartPlotter.git
-   cd CsvChartPlotter
-   ```
-
-2. Install dependencies:
-
-   ```powershell
-   uv sync
-   ```
-
-3. Activate virtual environment (optional):
-
-   ```powershell
-   .\.venv\Scripts\Activate.ps1
-   ```
+# Install dependencies
+uv sync
+```
 
 ## Usage
 
-### Development Workflow
+### Run with CSV File
 
-Run directly with UV (no installation required):
-
-```powershell
+```bash
 uv run csv-chart-plotter sample.csv
 ```
 
-### Standalone Executable
+### Run Empty (File Dialog)
 
-For distribution without Python installation:
-
-1. Install build dependencies:
-
-   ```powershell
-   uv add --optional nuitka
-   ```
-
-2. Compile to executable:
-
-   ```powershell
-   python build.py
-   ```
-
-3. Run standalone executable:
-
-   ```powershell
-   .\dist\csv-chart-plotter.exe sample.csv
-   ```
-
-**Note:** First compilation takes 5-15 minutes. Subsequent builds reuse cached modules.
-
-## Supported CSV Formats
-
-### Data Requirements
-
-- **First column:** Index or timestamp (string/datetime format)
-- **Remaining columns:** Numeric data (int/float)
-- **Header row:** Column names (required)
-- **Delimiter:** Comma (`,`)
-
-### Example Structure
-
-```csv
-Timestamp,MetricA,MetricB,MetricC
-2025-12-01T09:00:00Z,123.45,67.89,42.10
-2025-12-01T09:01:00Z,124.56,68.01,42.15
-2025-12-01T09:02:00Z,125.67,68.23,42.20
+```bash
+uv run csv-chart-plotter
 ```
 
-### Data Quality Handling
+Click "Load CSV..." to open the native file dialog.
 
-| Scenario | Behavior |
-|----------|----------|
-| Non-numeric column | Dropped with warning (except first column) |
-| Missing values (NaN) | Rendered as gaps in line plots |
-| Malformed rows | Skipped with warning |
-| Empty columns | Dropped with warning |
+### Follow Mode (Live Tail)
 
-### Tested Dataset: sample.csv
+```bash
+uv run csv-chart-plotter logfile.csv --follow
+```
 
-- **Rows:** 107
-- **Columns:** 23 (first column is timestamp, 22 numeric metrics)
-- **Domain:** Process memory and GC statistics
-- **Size:** ~20 KB
+The chart auto-updates when the file grows. Zoom/pan pauses follow mode; click checkbox to resume.
 
-Load with: `uv run csv-chart-plotter sample.csv`
+### Theme Selection
 
-## Performance Characteristics
-
-### Target Specifications
-
-| Metric | Target | Measured (1M rows × 23 cols) |
-|--------|--------|------------------------------|
-| Peak Memory | < 2 GB | 1.44 GB ✓ |
-| Load Time | — | 3.73 seconds |
-| App Creation | < 5 seconds | 4.78 seconds ✓ |
-| Zoom/Pan Latency | < 100 ms | <100 ms (GPU-bound) ✓ |
-
-### Dataset Limits
-
-- **Maximum rows:** 1,000,000
-- **Maximum columns:** ~40 numeric columns (at 1M rows)
-- **Maximum file size:** ~420 MB (1M × 23 columns)
-- **Memory scaling:** ~0.65 KB per row
-
-For detailed performance analysis, see [PERFORMANCE.md](PERFORMANCE.md).
-
-## Known Limitations
-
-### Functional Constraints
-
-- **No state persistence:** Zoom/pan state resets between sessions
-- **CSV format only:** No support for Parquet, JSON, or other formats
-- **Time-series assumption:** First column treated as index/timestamp
-- **No real-time updates:** Static visualization of loaded data
-
-### Performance Constraints
-
-- **Column count:** ~40 numeric columns at 1M rows (memory limit)
-- **Row count:** 1M rows (performance degradation beyond this point)
-- **Load time with malformed CSVs:** 10-20x slower (Python parser fallback)
-
-### Platform Support
-
-- **Windows only:** Tested on Windows 11 (pywebview dependencies may vary on Linux/macOS)
-- **GPU requirement:** WebGL-capable GPU for ScatterGL rendering (all modern integrated GPUs supported)
+```bash
+uv run csv-chart-plotter sample.csv --theme dark
+```
 
 ## Interactive Controls
 
-Once the chart window opens:
+| Control | Action |
+|---------|--------|
+| **Drag select** | Zoom to selected time range (Y auto-scales) |
+| **Scroll wheel** | Zoom in/out |
+| **Double-click** | Reset to full view |
+| **Click legend** | Toggle trace visibility |
+| **Hover** | Show values at cursor position |
 
-- **Pan:** Click and drag chart area
-- **Zoom:** Scroll wheel or box selection (click and drag rectangle)
-- **Reset:** Double-click chart area
-- **Toggle series:** Click legend items to show/hide traces
-- **Hover:** Mouse over data points to see values
+### Plotly Toolbar
+
+The chart includes Plotly's built-in toolbar (top-right corner):
+
+| Button | Function |
+|--------|----------|
+| 📷 Download plot as PNG | Save chart image |
+| 🔍 Zoom | Enable box zoom mode |
+| ↔️ Pan | Enable pan mode |
+| 🏠 Reset axes | Reset to original view |
+| ↩️ Autoscale | Auto-fit all data |
+
+## Supported CSV Formats
+
+### Requirements
+
+- **First column:** Timestamp or index (used as X-axis)
+- **Remaining columns:** Numeric data (non-numeric columns auto-filtered)
+- **Header row:** Required
+- **Delimiter:** Comma (`,`)
+
+### Example
+
+```csv
+Timestamp,Temperature,Pressure,Humidity
+2025-12-01T09:00:00Z,23.5,1013.2,45.0
+2025-12-01T09:01:00Z,23.6,1013.1,45.2
+2025-12-01T09:02:00Z,23.7,1013.0,45.5
+```
+
+### Timestamp Handling
+
+- ISO 8601 UTC timestamps (`2025-12-01T09:00:00Z`) are converted to local timezone
+- Other timestamp formats displayed as-is
+- Non-timestamp first columns used as string index
+
+### Data Quality
+
+| Scenario | Behavior |
+|----------|----------|
+| Non-numeric column | Dropped with warning |
+| Missing values (NaN) | Rendered as gaps in lines |
+| Malformed rows | Skipped with warning |
+| Empty columns | Dropped |
+
+## Architecture
+
+### Streaming Design
+
+Unlike traditional CSV viewers that load entire files into memory, CSV Chart Plotter uses an indexed streaming approach:
+
+1. **Index phase:** Scan file to build byte-offset index of row positions
+2. **Read phase:** Load only requested row ranges from disk
+3. **Downsample phase:** LTTB reduces to ≤4,000 display points per trace
+
+This enables constant memory usage regardless of file size—a 10GB CSV uses the same memory as a 10KB CSV.
+
+### Module Structure
+
+```
+src/csv_chart_plotter/
+├── main.py           # CLI entry, pywebview window lifecycle
+├── csv_indexer.py    # Streaming CSV access with row offset indexing
+├── column_filter.py  # Numeric column detection and filtering
+├── lttb.py           # LTTB downsampling algorithm
+├── chart_app.py      # Dash application, callbacks, figure creation
+├── palettes.py       # Theme color definitions
+├── logging_config.py # Logging setup
+└── assets/
+    └── styles.css    # UI styling
+```
 
 ## Development
 
 ### Running Tests
 
-Full test suite:
-
-```powershell
+```bash
 uv run pytest tests/ -v
-```
-
-Performance validation (includes 1M row synthetic dataset generation):
-
-```powershell
-uv run pytest tests/test_performance_validation.py -v -s
-```
-
-**Test Duration:** ~85 seconds (20 seconds for synthetic CSV generation)
-
-### Project Structure
-
-```
-CsvChartPlotter/
-├── src/csv_chart_plotter/
-│   ├── main.py              # CLI entry point
-│   ├── csv_loader.py        # Chunked CSV reading
-│   ├── column_filter.py     # Numeric column filtering
-│   ├── chart_app.py         # Dash application
-│   └── logging_config.py    # Logging configuration
-├── tests/                   # Pytest test suite
-├── build.py                 # Nuitka compilation script
-├── sample.csv               # Example dataset (107 rows)
-├── pyproject.toml           # UV project configuration
-└── README.md                # This file
-```
-
-### Adding Dependencies
-
-Add runtime dependency:
-
-```powershell
-uv add <package_name>
-```
-
-Add development dependency:
-
-```powershell
-uv add --dev <package_name>
 ```
 
 ### Code Quality
 
-Format code with:
-
-```powershell
+```bash
+# Format
 uv run ruff format src/ tests/
-```
 
-Lint code with:
-
-```powershell
+# Lint
 uv run ruff check src/ tests/
 ```
 
-## Building for Distribution
+### Project Structure
 
-See [BUILDING.md](BUILDING.md) for detailed compilation instructions, troubleshooting, and platform-specific considerations.
+```
+csv-chart-plotter/
+├── src/csv_chart_plotter/   # Application source
+├── tests/                   # Test suite
+├── tools/                   # Utilities (synthetic CSV generator)
+├── docs/                    # Specifications
+├── build.py                 # Nuitka build script
+├── sample.csv               # Example dataset
+└── pyproject.toml           # Project configuration
+```
 
-## Contributing
+## Building Standalone Executable
 
-1. Fork repository
-2. Create feature branch: `git checkout -b feature/your-feature`
-3. Write tests for new functionality
-4. Ensure all tests pass: `uv run pytest`
-5. Submit pull request
+See [BUILDING.md](BUILDING.md) for compilation instructions.
+
+Quick build:
+
+```bash
+uv add --dev nuitka
+python build.py
+./dist/csv-chart-plotter sample.csv
+```
+
+## Known Limitations
+
+- **CSV format only** — no Parquet, JSON, or other formats
+- **No state persistence** — zoom/pan resets between sessions
+- **Single file** — no multi-file overlay or comparison view
+- **WebGL required** — needs GPU with WebGL support
 
 ## License
 
-MIT License. See LICENSE file for details.
+MIT License. See [LICENSE](LICENSE) for details.
 
 ## Acknowledgements
 
-- [Plotly](https://plotly.com/) - Interactive charting library
-- [Dash](https://dash.plotly.com/) - Python web framework for data applications
-- [Pandas](https://pandas.pydata.org/) - Data manipulation library
-- [pywebview](https://pywebview.flowrl.com/) - Native window wrapper
-- [Nuitka](https://nuitka.net/) - Python compiler for standalone executables
-- [UV](https://github.com/astral-sh/uv) - Fast Python package manager
-
-## Contact
-
-Report issues at: <https://github.com/yourusername/CsvChartPlotter/issues>
+- [Plotly](https://plotly.com/) — Interactive charting
+- [Dash](https://dash.plotly.com/) — Web application framework
+- [pywebview](https://pywebview.flowrl.com/) — Native window wrapper
+- [Pandas](https://pandas.pydata.org/) — Data manipulation
+- [UV](https://github.com/astral-sh/uv) — Python package manager
