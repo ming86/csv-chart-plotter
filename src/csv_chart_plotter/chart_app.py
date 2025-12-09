@@ -74,10 +74,15 @@ def create_app(
         latest_timestamp = "No data"
         has_data = False
 
+    # Determine theme colors for initial styling
+    bg_color = "#1a1a1a" if theme == "dark" else "#ffffff"
+    
     # Build layout
     app.layout = html.Div(
         id="app-container",
         className="app-container",
+        style={"backgroundColor": bg_color},
+        **{"data-theme": theme},  # Set initial theme for CSS variables
         children=[
             # Stores for state management
             dcc.Store(id="theme-store", data=theme),
@@ -184,19 +189,24 @@ def create_app(
 
     @app.callback(
         Output("app-container", "data-theme"),
+        Output("app-container", "style"),
         Output("main-chart", "figure", allow_duplicate=True),
         Input("theme-dropdown", "value"),
         State("main-chart", "figure"),
         prevent_initial_call=True,
     )
-    def update_theme(new_theme: str, current_figure: dict) -> tuple[str, dict]:
+    def update_theme(new_theme: str, current_figure: dict) -> tuple[str, dict, dict]:
         """Update theme across the application."""
+        # Update background color based on theme
+        bg_color = "#1a1a1a" if new_theme == "dark" else "#ffffff"
+        style = {"backgroundColor": bg_color}
+        
         if current_figure is None:
-            return new_theme, no_update
+            return new_theme, style, no_update
 
         # Update figure colors for new theme
         updated_figure = _update_figure_theme(current_figure, new_theme)
-        return new_theme, updated_figure
+        return new_theme, style, updated_figure
 
     @app.callback(
         Output("main-chart", "figure", allow_duplicate=True),
