@@ -134,7 +134,7 @@ The key architectural insight: **LTTB downsampling to 4,000 points means display
 
 | Requirement ID | Description |
 |----------------|-------------|
-| FR-FOLLOW-01 | Enable follow mode when `--follow` flag provided |
+| FR-FOLLOW-01 | `--follow` flag sets initial state of follow mode (user can toggle via checkbox) |
 | FR-FOLLOW-02 | Poll for file changes every 5 seconds |
 | FR-FOLLOW-03 | Debounce updates to minimum 5-second interval |
 | FR-FOLLOW-04 | Detect new rows appended to file (tail follow) |
@@ -333,7 +333,7 @@ Flask Server (background thread)                                          pywebv
   - **[Load CSV...] button**: Opens native file dialog via `pywebview.create_file_dialog()`
   - **[Reload] button**: Manual refresh for current file
   - **Theme dropdown**: Light/Dark theme selector; persists via `dcc.Store`
-  - **☑ Follow Mode checkbox**: Toggle for tail-follow behavior (only visible when `--follow` flag provided)
+  - **☑ Follow Mode checkbox**: Toggle for tail-follow behavior; visible when data is loaded; `--follow` flag sets initial checked state
   - **Status text**: Always shows latest data timestamp, right-aligned
 - Timestamp format: **local time** (not UTC), `YYYY-MM-DD HH:MM:SS`
 - Empty state: If no CLI argument provided, show only [Load CSV...] button with message "No file loaded"
