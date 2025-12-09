@@ -1,0 +1,136 @@
+/* CSV Chart Plotter - Theme Styles */
+
+/* Light Theme (default) */
+:root {
+    --color-base: #ffffff;
+    --color-surface: #f5f5f5;
+    --color-border: #c0c0c0;
+    --color-text-primary: #1a1a1a;
+    --color-text-secondary: #4a4a4a;
+    --color-accent: #d84315;
+    --color-accent-hover: #bf360c;
+    --color-plot-bg: #ffffff;
+    --color-grid: #e0e0e0;
+
+    --font-xs: 10px;
+    --font-sm: 11px;
+    --font-base: 12px;
+    --font-md: 13px;
+    --font-lg: 14px;
+    --font-xl: 16px;
+    --font-2xl: 20px;
+
+    --spacing-xs: 4px;
+    --spacing-sm: 8px;
+    --spacing-md: 12px;
+    --spacing-lg: 16px;
+    --spacing-xl: 24px;
+}
+
+/* Dark Theme */
+[data-theme="dark"] {
+    --color-base: #1a1a1a;
+    --color-surface: #242424;
+    --color-border: #3a3a3a;
+    --color-text-primary: #e8e8e8;
+    --color-text-secondary: #a0a0a0;
+    --color-accent: #ff6b35;
+    --color-accent-hover: #ff8a5b;
+    --color-plot-bg: #1a1a1a;
+    --color-grid: #3a3a3a;
+}
+
+/* Base Styles */
+body {
+    font-family: Roboto, Helvetica, Arial, sans-serif;
+    font-size: var(--font-base);
+    color: var(--color-text-primary);
+    background-color: var(--color-base);
+    margin: 0;
+    padding: 0;
+}
+
+/* Control Bar */
+.control-bar {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-sm) var(--spacing-md);
+    background-color: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
+    height: 30px;
+}
+
+/* Buttons */
+.btn {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    font-size: var(--font-sm);
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    background-color: var(--color-base);
+    color: var(--color-text-primary);
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.btn:hover {
+    background-color: var(--color-surface);
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-primary {
+    background-color: var(--color-accent);
+    color: white;
+    border-color: var(--color-accent);
+}
+
+.btn-primary:hover {
+    background-color: var(--color-accent-hover);
+}
+
+/* Dropdowns */
+select {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    font-size: var(--font-sm);
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    background-color: var(--color-base);
+    color: var(--color-text-primary);
+}
+
+/* Checkboxes */
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    font-size: var(--font-sm);
+    cursor: pointer;
+}
+
+/* Status Text */
+.status-text {
+    margin-left: auto;
+    font-size: var(--font-sm);
+    color: var(--color-text-secondary);
+}
+
+/* Chart Container */
+.chart-container {
+    height: 80vh;
+    padding: var(--spacing-md);
+}
+
+/* Empty State */
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 80vh;
+    color: var(--color-text-secondary);
+    font-size: var(--font-lg);
+}

@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "csv-chart-plotter"
+version = "0.1.0"
+description = "Interactive CSV time-series visualizer"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "dash>=3.3.0",
+    "numpy>=2.0.0",
+    "pandas>=2.3.3",
+    "plotly>=6.5.0",
+    "pywebview>=6.1",
+    "watchdog>=3.0.0",
+]
+
+[project.scripts]
+csv-chart-plotter = "csv_chart_plotter.main:main"
+
+[project.optional-dependencies]
+build = [
+    "nuitka>=2.8.9",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.1",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/csv_chart_plotter"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
