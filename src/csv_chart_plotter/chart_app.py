@@ -118,11 +118,11 @@ def create_app(
                         clearable=False,
                         className="theme-dropdown",
                     ),
-                    # Follow mode controls (only visible if enabled)
+                    # Follow mode controls (visible when file is loaded)
                     html.Div(
                         id="follow-controls",
                         className="follow-controls",
-                        style={"display": "flex" if follow_mode else "none"},
+                        style={"display": "flex" if has_data else "none"},
                         children=[
                             dcc.Checklist(
                                 id="follow-checkbox",
@@ -173,11 +173,11 @@ def create_app(
                 ],
             ),
 
-            # Follow mode interval (only active when follow mode enabled)
+            # Follow mode interval (disabled/enabled via checkbox callback)
             dcc.Interval(
                 id="follow-interval",
                 interval=FOLLOW_INTERVAL_MS,
-                disabled=not follow_mode,
+                disabled=True,  # Initially disabled; controlled by checkbox callback
             ),
         ],
     )
@@ -325,7 +325,7 @@ def create_app(
             return no_update, f"Error: {e}", no_update
 
     @app.callback(
-        Output("follow-active-store", "data"),
+        Output("follow-checkbox", "value"),
         Output("status-text", "children", allow_duplicate=True),
         Output("main-chart", "figure", allow_duplicate=True),
         Input("main-chart", "relayoutData"),
@@ -345,6 +345,7 @@ def create_app(
 
         For time-series, X-axis zoom should auto-scale Y to fit visible data.
         This callback resets Y-axis to autorange when X changes.
+        Auto-unchecks follow mode when user pans away from tail.
         """
         if relayout_data is None:
             return no_update, no_update, no_update
@@ -376,16 +377,43 @@ def create_app(
                 updated_figure["layout"] = layout
                 figure_update = updated_figure
 
-        # Handle follow mode pause
+        # Handle follow mode auto-pause when user navigates away from tail
         status_update = no_update
-        follow_update = no_update
+        checkbox_update = no_update
         if x_range_changed and app._csv_indexer is not None:
             if follow_value and "follow" in follow_value:
+                # User was in follow mode but panned/zoomed - auto-disable follow mode
+                checkbox_update = []  # Uncheck the checkbox
                 if "Latest:" in current_status:
                     status_update = current_status.replace("Latest:", "Paused | Latest:")
-                    follow_update = False
 
-        return follow_update, status_update, figure_update
+        return checkbox_update, status_update, figure_update
+
+    @app.callback(
+        Output("follow-interval", "disabled"),
+        Output("status-text", "children", allow_duplicate=True),
+        Input("follow-checkbox", "value"),
+        State("status-text", "children"),
+        prevent_initial_call=True,
+    )
+    def toggle_follow_interval(
+        follow_value: list,
+        current_status: str,
+    ) -> tuple:
+        """
+        Enable/disable the follow interval based on checkbox state.
+        """
+        is_following = follow_value and "follow" in follow_value
+        
+        # Update status text to reflect follow mode state
+        if current_status and "Paused |" in current_status and is_following:
+            # User re-enabled follow mode - remove "Paused" prefix
+            new_status = current_status.replace("Paused | ", "")
+        else:
+            new_status = no_update
+        
+        # Enable interval when following, disable when not
+        return not is_following, new_status
 
     @app.callback(
         Output("main-chart", "figure", allow_duplicate=True),
@@ -466,8 +494,8 @@ def create_app(
                 csv_path.name,
             )
 
-            # Enable reload button, hide follow controls (file dialog doesn't enable follow)
-            return new_figure, status, False, {"display": "none"}
+            # Enable reload button, show follow controls (now that file is loaded)
+            return new_figure, status, False, {"display": "flex"}
 
         except FileNotFoundError as e:
             logger.error("File not found: %s", e)
