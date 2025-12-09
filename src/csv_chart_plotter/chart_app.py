@@ -117,7 +117,6 @@ def create_app(
                         value=theme,
                         clearable=False,
                         className="theme-dropdown",
-                        style={"width": "100px"},
                     ),
                     # Follow mode controls (only visible if enabled)
                     html.Div(

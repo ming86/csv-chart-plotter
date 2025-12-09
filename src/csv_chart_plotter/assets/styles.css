@@ -50,6 +50,13 @@ body {
     padding: 0;
 }
 
+/* App Container */
+.app-container {
+    min-height: 100vh;
+    background-color: var(--color-base);
+    color: var(--color-text-primary);
+}
+
 /* Control Bar */
 .control-bar {
     display: flex;
@@ -120,8 +127,9 @@ select {
 
 /* Chart Container */
 .chart-container {
-    height: 80vh;
+    height: calc(100vh - 50px); /* Full height minus control bar */
     padding: var(--spacing-md);
+    background-color: var(--color-base);
 }
 
 /* Empty State */
@@ -130,7 +138,44 @@ select {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    height: 80vh;
+    height: calc(100vh - 50px);
     color: var(--color-text-secondary);
     font-size: var(--font-lg);
+}
+
+/* Dash Dropdown Styling */
+.theme-dropdown .Select-control {
+    background-color: var(--color-base) !important;
+    border-color: var(--color-border) !important;
+}
+
+.theme-dropdown .Select-menu-outer {
+    background-color: var(--color-base) !important;
+    border-color: var(--color-border) !important;
+}
+
+.theme-dropdown .Select-option {
+    background-color: var(--color-base) !important;
+    color: var(--color-text-primary) !important;
+}
+
+.theme-dropdown .Select-option.is-selected {
+    background-color: var(--color-surface) !important;
+}
+
+.theme-dropdown .Select-option.is-focused {
+    background-color: var(--color-surface) !important;
+}
+
+.theme-dropdown .Select-value-label {
+    color: var(--color-text-primary) !important;
+}
+.theme-dropdown {
+    width: 100px;
+}
+
+/* Control Label */
+.control-label {
+    font-size: var(--font-sm);
+    color: var(--color-text-primary);
 }
