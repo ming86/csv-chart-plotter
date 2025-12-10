@@ -13,10 +13,11 @@ CSV Chart Plotter is an interactive time-series visualizer for CSV datasets of a
 - Plotly (ScatterGL for GPU rendering)
 - pywebview (native window wrapper)
 - pandas (CSV parsing, data manipulation)
-- numpy (LTTB downsampling algorithm)
+- numpy (array operations)
+- tsdownsample (MinMaxLTTB downsampling algorithm)
 - watchdog (filesystem monitoring for follow mode)
 
-**Key Architectural Principle:** Memory consumption is bounded by display requirements (~1MB for 4,000 points × N columns), not source data size. A 10GB CSV uses the same memory as a 10KB CSV because we stream from disk and downsample to exactly 4,000 points per trace via LTTB (Largest-Triangle-Three-Buckets algorithm).
+**Key Architectural Principle:** Memory consumption is bounded by display requirements (~1MB for 4,000 points × N columns), not source data size. A 10GB CSV uses the same memory as a 10KB CSV because we stream from disk and downsample to exactly 4,000 points per trace via MinMaxLTTB (two-phase min-max preselection + LTTB refinement, 10-30× faster than pure LTTB).
 
 ## Architecture
 
@@ -52,7 +53,7 @@ CLI Argument → Validate File → Build Row Index (byte offsets)
                                        ↓
                         Read indexed row range from disk
                                        ↓
-                        LTTB Downsample to ≤4,000 points
+                        MinMaxLTTB Downsample to ≤4,000 points
                                        ↓
                         ScatterGL Trace Construction
                                        ↓
@@ -80,9 +81,9 @@ Flask (background thread)                               pywebview Window (main t
 | `main.py`           | CLI parsing, file validation, port discovery, Flask background thread startup, pywebview window creation (blocking), graceful exit                                     |
 | `csv_indexer.py`    | Build byte-offset index for rows; provide `read_range(start_row, end_row)` API; support incremental index updates for appended data                                    |
 | `column_filter.py`  | Dtype-based numeric filtering (`int64`, `float64`, `int32`, `float32`), NaN ratio calculation, all-NaN column removal, quality issue logging                           |
-| `chart_app.py`      | Dash app factory, ScatterGL trace construction, LTTB downsampling integration, layout assembly, follow mode callbacks, zoom-resample callbacks, file loading callbacks |
+| `chart_app.py`      | Dash app factory, ScatterGL trace construction, MinMaxLTTB downsampling integration, layout assembly, follow mode callbacks, dragmode toggle, file loading callbacks |
 | `csv_monitor.py`    | Watchdog filesystem observer, debounced modification handling, trigger index refresh on file growth                                                                    |
-| `lttb.py`           | Largest-Triangle-Three-Buckets downsampling algorithm; preserves visual shape at reduced point density                                                                 |
+| `lttb.py`           | MinMaxLTTB downsampling via tsdownsample library; two-phase algorithm (min-max preselection + LTTB refinement) preserves visual shape with superior performance         |
 | `palettes.py`       | Theme color definitions (light/dark); 20-color palette rotation based on Okabe-Ito, Tol, and Kelly maximum-contrast palettes                                           |
 | `logging_config.py` | Root logger configuration with consistent format                                                                                                                       |
 
@@ -238,7 +239,7 @@ def create_app(max_points: int = MAX_DISPLAY_POINTS, ...):
     ...
 ```
 
-### Modifying LTTB Downsampling Threshold
+### Modifying Downsampling Configuration
 
 The `MAX_DISPLAY_POINTS` constant in `chart_app.py` controls the maximum points per trace. Changing this affects:
 
@@ -249,9 +250,14 @@ The `MAX_DISPLAY_POINTS` constant in `chart_app.py` controls the maximum points 
 ```python
 # chart_app.py
 MAX_DISPLAY_POINTS = 4000  # Change here for global effect
+MINMAX_RATIO = 4           # Preselection ratio (higher = faster, less detail)
 ```
 
-The LTTB algorithm in `lttb.py` receives this threshold and guarantees output ≤ threshold.
+The MinMaxLTTB algorithm in `lttb.py` (via tsdownsample) receives this threshold and guarantees output ≤ threshold.
+
+**MinMaxLTTB Parameters:**
+- `minmax_ratio`: Higher values prioritize speed over mid-range detail (default: 4)
+- `parallel`: Enable Rust-level multi-threading for large datasets (default: False)
 
 ### Adding a New Color Palette
 
@@ -377,15 +383,25 @@ def test_new_indexer_feature(tmp_path):
 
 **Implication:** There are NO row or column limits. The `MAX_ROWS` and `MAX_COLUMNS` constants from earlier implementations have been removed.
 
-### LTTB Downsampling Behavior
+### MinMaxLTTB Downsampling Behavior
 
-The Largest-Triangle-Three-Buckets algorithm preserves visual shape by selecting points that maximize triangle areas. Key behaviors:
+The MinMaxLTTB algorithm (via tsdownsample) uses a two-phase approach for superior performance:
+
+**Phase 1: Min-max preselection**
+- Selects n_out × minmax_ratio extreme points (default ratio: 4)
+- Guarantees capture of peaks and troughs
+
+**Phase 2: LTTB refinement**
+- Applies Largest-Triangle-Three-Buckets to preselected points
+- Maximizes triangle areas to preserve visual shape
+
+**Key behaviors:**
 
 1. **First and last points always retained** — ensures viewport boundaries are exact
-2. **Peaks and troughs prioritized** — visual fidelity at extreme values
+2. **Peaks and troughs prioritized** — min-max preselection guarantees extreme value retention
 3. **Smooth regions simplified** — flat sections represented by fewer points
 4. **Deterministic** — same input always produces same output
-5. **Single-pass O(n)** — computationally efficient
+5. **High performance** — 10-30× faster than pure LTTB (Rust implementation)
 
 **When downsampling is applied:**
 
@@ -396,6 +412,12 @@ The Largest-Triangle-Three-Buckets algorithm preserves visual shape by selecting
 **When downsampling is skipped:**
 
 - Viewport contains ≤4,000 rows (no reduction needed)
+
+**Configuration:**
+- `minmax_ratio`: Default 4 (empirically optimal per research)
+- `parallel`: Optional multi-threading (disabled by default)
+
+**Reference:** https://arxiv.org/abs/2305.00332
 
 ### Viewport State Synchronization
 
@@ -500,6 +522,25 @@ Timestamp,Temperature,Pressure
 - All columns non-numeric → `ValueError` (raised by `column_filter`)
 - Inconsistent column count → malformed row (skipped)
 
+### Dragmode Interaction Toggle
+
+Users can switch between two drag interaction modes via dropdown:
+
+**Zoom mode (default):**
+- Drag creates selection box for precise time-range zooming
+- Double-click resets to full view
+- Preferred for scientific analysis requiring precision
+
+**Pan mode:**
+- Drag navigates/scrolls through data
+- Scroll wheel still zooms
+- Traditional panning behavior
+
+**Implementation:**
+- Dropdown in control bar: `dragmode-dropdown`
+- Callback updates `layout.dragmode` property
+- Default: `dragmode='zoom'` (box zoom)
+
 ### Plotly Trace Configuration
 
 All traces use this configuration:
@@ -584,7 +625,7 @@ Quick lookup for common modifications:
 | ---------------- | ---------------------------------- | ------------------------------------------------------------ |
 | CSV Parsing      | `csv_indexer.py`                   | `build_index`, `read_range`, `_parse_csv_row`, `row_offsets` |
 | Column Filtering | `column_filter.py`                 | `filter_numeric_columns`, `compute_nan_ratio`                |
-| Downsampling     | `lttb.py`, `chart_app.py`          | `lttb_downsample`, `MAX_DISPLAY_POINTS`                      |
+| Downsampling     | `lttb.py`, `chart_app.py`          | `lttb_downsample`, `compute_lttb_indices`, `MAX_DISPLAY_POINTS`, `MINMAX_RATIO` |
 | Chart Rendering  | `chart_app.py`                     | `create_figure`, `create_trace`, `ScatterGL`                 |
 | Follow Mode      | `csv_monitor.py`, `chart_app.py`   | `CSVFileMonitor`, `update_on_follow_interval`                |
 | Theming          | `palettes.py`, `assets/styles.css` | `LIGHT_PALETTE`, `DARK_PALETTE`, `[data-theme]`              |
