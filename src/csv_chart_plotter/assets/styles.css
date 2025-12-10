@@ -144,32 +144,39 @@ select {
 }
 
 /* Dash Dropdown Styling */
-.theme-dropdown .Select-control {
+.theme-dropdown .Select-control,
+.dragmode-dropdown .Select-control {
     background-color: var(--color-base) !important;
     border-color: var(--color-border) !important;
 }
 
-.theme-dropdown .Select-menu-outer {
+.theme-dropdown .Select-menu-outer,
+.dragmode-dropdown .Select-menu-outer {
     background-color: var(--color-base) !important;
     border-color: var(--color-border) !important;
 }
 
-.theme-dropdown .Select-option {
+.theme-dropdown .Select-option,
+.dragmode-dropdown .Select-option {
     background-color: var(--color-base) !important;
     color: var(--color-text-primary) !important;
 }
 
-.theme-dropdown .Select-option.is-selected {
+.theme-dropdown .Select-option.is-selected,
+.dragmode-dropdown .Select-option.is-selected {
     background-color: var(--color-surface) !important;
 }
 
-.theme-dropdown .Select-option.is-focused {
+.theme-dropdown .Select-option.is-focused,
+.dragmode-dropdown .Select-option.is-focused {
     background-color: var(--color-surface) !important;
 }
 
-.theme-dropdown .Select-value-label {
+.theme-dropdown .Select-value-label,
+.dragmode-dropdown .Select-value-label {
     color: var(--color-text-primary) !important;
 }
+
 .theme-dropdown {
     width: 100px;
 }
