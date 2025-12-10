@@ -10,8 +10,8 @@ CSV Chart Plotter loads CSV files containing numeric time-series data and render
 
 - **Streaming architecture** — handles arbitrarily large CSV files via on-demand reading with row indexing
 - **GPU-accelerated rendering** — Plotly ScatterGL (WebGL) for sub-100ms zoom/pan latency
-- **LTTB downsampling** — Largest-Triangle-Three-Buckets algorithm limits display to 4,000 points per trace
-- **Interactive controls** — time-range zoom (Y auto-scales), pan, legend toggle, hover tooltips
+- **MinMaxLTTB downsampling** — Two-phase algorithm (10-30× faster than pure LTTB) limits display to 4,000 points per trace
+- **Interactive controls** — box-zoom selection (default), pan mode toggle, Y auto-scaling, legend toggle, hover tooltips
 - **Follow mode** — live file tail with 5-second debounced updates
 - **Native file dialog** — select CSV files without CLI; switch files without restart
 - **Light/dark themes** — switchable via UI
@@ -69,7 +69,8 @@ uv run csv-chart-plotter sample.csv --theme dark
 
 | Control | Action |
 |---------|--------|
-| **Drag select** | Zoom to selected time range (Y auto-scales) |
+| **Drag select** | Box-zoom to selected time range (default mode, Y auto-scales) |
+| **Drag mode toggle** | Switch between Zoom and Pan modes via dropdown |
 | **Scroll wheel** | Zoom in/out |
 | **Double-click** | Reset to full view |
 | **Click legend** | Toggle trace visibility |
@@ -128,18 +129,24 @@ Unlike traditional CSV viewers that load entire files into memory, CSV Chart Plo
 
 1. **Index phase:** Scan file to build byte-offset index of row positions
 2. **Read phase:** Load only requested row ranges from disk
-3. **Downsample phase:** LTTB reduces to ≤4,000 display points per trace
+3. **Downsample phase:** MinMaxLTTB (via tsdownsample) reduces to ≤4,000 display points per trace
 
 This enables constant memory usage regardless of file size—a 10GB CSV uses the same memory as a 10KB CSV.
 
+**MinMaxLTTB Algorithm:** Two-phase downsampling for superior performance:
+
+- Phase 1: Min-max preselection identifies extreme values (n_out × ratio points)
+- Phase 2: LTTB refinement applies triangle-area selection to preselected points
+- Result: 10-30× faster than pure LTTB with comparable visual fidelity (research: <https://arxiv.org/abs/2305.00332>)
+
 ### Module Structure
 
-```
+```text
 src/csv_chart_plotter/
 ├── main.py           # CLI entry, pywebview window lifecycle
 ├── csv_indexer.py    # Streaming CSV access with row offset indexing
 ├── column_filter.py  # Numeric column detection and filtering
-├── lttb.py           # LTTB downsampling algorithm
+├── lttb.py           # MinMaxLTTB downsampling (via tsdownsample)
 ├── chart_app.py      # Dash application, callbacks, figure creation
 ├── palettes.py       # Theme color definitions
 ├── logging_config.py # Logging setup
@@ -167,7 +174,7 @@ uv run ruff check src/ tests/
 
 ### Project Structure
 
-```
+```text
 csv-chart-plotter/
 ├── src/csv_chart_plotter/   # Application source
 ├── tests/                   # Test suite
@@ -199,7 +206,7 @@ python build.py
 
 ## License
 
-MIT License. See [LICENSE](LICENSE) for details.
+Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.
 
 ## Acknowledgements
 
@@ -207,4 +214,5 @@ MIT License. See [LICENSE](LICENSE) for details.
 - [Dash](https://dash.plotly.com/) — Web application framework
 - [pywebview](https://pywebview.flowrl.com/) — Native window wrapper
 - [Pandas](https://pandas.pydata.org/) — Data manipulation
+- [tsdownsample](https://github.com/predict-idlab/tsdownsample) — High-performance MinMaxLTTB algorithm
 - [UV](https://github.com/astral-sh/uv) — Python package manager
