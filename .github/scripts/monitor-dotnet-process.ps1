@@ -14,7 +14,78 @@ param(
 )
 
 # Strip .exe extension if provided (Get-Process expects name without extension)
+$OriginalInput = $ProcessName
 $ProcessName = $ProcessName -replace '\.exe$', ''
+
+# Helper function to find process by name (supports wildcards and partial matching)
+function Find-TargetProcess {
+    param([string]$Name)
+    
+    # Try exact match first
+    $proc = Get-Process -Name $Name -ErrorAction SilentlyContinue
+    if ($proc) { return $proc }
+    
+    # Try wildcard match (process name contains the search term)
+    $proc = Get-Process -Name "*$Name*" -ErrorAction SilentlyContinue
+    if ($proc) { return $proc }
+    
+    # Try matching by executable path using WMI (handles cases where ProcessName differs from exe name)
+    $wmiProc = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | 
+        Where-Object { $_.Name -like "*$Name*" -or $_.ExecutablePath -like "*$Name*" } |
+        Select-Object -First 1
+    if ($wmiProc) {
+        return Get-Process -Id $wmiProc.ProcessId -ErrorAction SilentlyContinue
+    }
+    
+    return $null
+}
+
+# Helper function to show similar running processes for debugging
+function Show-SimilarProcesses {
+    param([string]$SearchTerm)
+    
+    Write-Host ""
+    Write-Host "=== DEBUG: Currently running processes (filtered) ===" -ForegroundColor Yellow
+    
+    # Get all processes and show those that might be related
+    $allProcs = Get-Process -ErrorAction SilentlyContinue | 
+        Select-Object -Property ProcessName, Id, Path -Unique |
+        Sort-Object ProcessName
+    
+    # Show processes with similar names (fuzzy match)
+    $similar = $allProcs | Where-Object { 
+        $_.ProcessName -like "*$SearchTerm*" -or 
+        ($_.Path -and $_.Path -like "*$SearchTerm*")
+    }
+    
+    if ($similar) {
+        Write-Host "Processes matching '$SearchTerm':" -ForegroundColor Green
+        $similar | ForEach-Object {
+            Write-Host "  - $($_.ProcessName) (PID: $($_.Id))" -ForegroundColor Cyan
+            if ($_.Path) { Write-Host "    Path: $($_.Path)" -ForegroundColor Gray }
+        }
+    } else {
+        Write-Host "No processes found matching '$SearchTerm'" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "Showing all .NET-related processes:" -ForegroundColor Yellow
+        $dotnetProcs = $allProcs | Where-Object { 
+            $_.ProcessName -match 'dotnet|aspnet|blazor|maui|wpf|winforms|core' -or
+            ($_.Path -and $_.Path -match '\\dotnet\\|\\\.NET\\')
+        }
+        if ($dotnetProcs) {
+            $dotnetProcs | ForEach-Object {
+                Write-Host "  - $($_.ProcessName) (PID: $($_.Id))" -ForegroundColor Cyan
+            }
+        } else {
+            Write-Host "  (none found)" -ForegroundColor Gray
+        }
+    }
+    
+    Write-Host ""
+    Write-Host "Tip: Run 'Get-Process | Select ProcessName, Id | Sort ProcessName' to see all processes" -ForegroundColor Yellow
+    Write-Host "=== END DEBUG ===" -ForegroundColor Yellow
+    Write-Host ""
+}
 
 # Ensure output directory exists
 if (-not (Test-Path $OutputDir)) {
@@ -22,34 +93,52 @@ if (-not (Test-Path $OutputDir)) {
     Write-Host "Created output directory: $OutputDir"
 }
 
-# Generate filename with timestamp
-$timestamp = Get-Date -Format "yyMMdd_HHmmss"
-$tempFile = Join-Path $env:TEMP "dotnet-counters-temp-$timestamp.csv"
-$outputFile = Join-Path $OutputDir "memory-metrics-$timestamp.csv"
-
-Write-Host "Waiting for process: $ProcessName (searching without .exe extension)"
-Write-Host "Output file: $outputFile"
+Write-Host "Searching for process: $ProcessName" -ForegroundColor Cyan
+Write-Host "  Original input: $OriginalInput"
+Write-Host "  Search method: exact match -> wildcard (*$ProcessName*) -> executable path"
+Write-Host ""
 Write-Host "Tip: Launch your application now if not already running"
 Write-Host ""
 
 # Wait for process to start
 $retryCount = 0
+$showDebugEvery = 5  # Show debug info every N retries
 while ($true) {
-    $process = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue
+    $process = Find-TargetProcess -Name $ProcessName
     if ($process) {
         # Handle multiple instances (take first)
         if ($process -is [array]) {
-            $pid = $process[0].Id
-            Write-Host "Multiple instances found. Monitoring PID: $pid"
+            $foundProcess = $process[0]
+            Write-Host "Multiple instances found. Monitoring first match." -ForegroundColor Yellow
         } else {
-            $pid = $process.Id
+            $foundProcess = $process
         }
-        Write-Host "Process found: $ProcessName (PID: $pid)"
+        $targetPid = $foundProcess.Id
+        $actualName = $foundProcess.ProcessName
+        Write-Host ""
+        Write-Host "Process found!" -ForegroundColor Green
+        Write-Host "  Name: $actualName"
+        Write-Host "  PID: $targetPid"
+        if ($foundProcess.Path) {
+            Write-Host "  Path: $($foundProcess.Path)"
+        }
+        
+        # Generate timestamp NOW (when monitoring actually begins)
+        $timestamp = Get-Date -Format "yyMMdd_HHmmss"
+        $tempFile = Join-Path $env:TEMP "dotnet-counters-temp-$timestamp.csv"
+        $outputFile = Join-Path $OutputDir "memory-metrics-$timestamp.csv"
+        Write-Host "  Output: $outputFile"
+        
         break
     }
     $retryCount++
     Write-Host "[$retryCount] Process '$ProcessName' not found. Retrying in 2 seconds..."
-    Write-Host "    Searching for: $ProcessName (without .exe)"
+    
+    # Show debug info periodically to help user identify the correct process name
+    if ($retryCount % $showDebugEvery -eq 0) {
+        Show-SimilarProcesses -SearchTerm $ProcessName
+    }
+    
     Start-Sleep -Seconds 2
 }
 
@@ -90,7 +179,7 @@ Write-Host ""
 
 # Run dotnet-counters (write to temp file)
 & dotnet-counters collect `
-    --process-id $pid `
+    --process-id $targetPid `
     --format csv `
     --output $tempFile `
     --refresh-interval $RefreshIntervalSeconds `
