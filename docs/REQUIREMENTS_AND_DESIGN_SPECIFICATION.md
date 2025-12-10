@@ -35,7 +35,7 @@ The core objectives are:
 
 ### 1.2 Design Philosophy: Streaming Over Loading
 
-The key architectural insight: **LTTB downsampling to 4,000 points means display memory is constant regardless of source data size.** This enables a streaming/indexed architecture similar to log viewers like glogg/klogg:
+The key architectural insight: **MinMaxLTTB downsampling to 4,000 points means display memory is constant regardless of source data size.** This enables a streaming/indexed architecture similar to log viewers like glogg/klogg:
 
 | Aspect | Old Design (Obsolete) | Target Design |
 |--------|----------------------|---------------|
@@ -64,7 +64,7 @@ The key architectural insight: **LTTB downsampling to 4,000 points means display
 | NaN gap handling | Missing values render as discontinuities |
 | Interactive controls | Pan, zoom, legend toggle, hover tooltips |
 | Live follow mode | 5-second debounced file tail with viewport preservation |
-| LTTB downsampling | Largest-Triangle-Three-Buckets algorithm limits display to 4,000 points per trace |
+| MinMaxLTTB downsampling | Two-phase algorithm (min-max + LTTB) limits display to 4,000 points per trace; 10-30× faster than pure LTTB |
 | File reload | Manual reload button to refresh current file |
 | Standalone compilation | Nuitka-based Windows executable generation |
 | Light/dark theming | Configurable colour palettes |
@@ -128,7 +128,7 @@ The key architectural insight: **LTTB downsampling to 4,000 points means display
 | FR-CHART-04 | Display trace name in legend |
 | FR-CHART-05 | Apply colour from palette (23-colour rotation) |
 | FR-CHART-06 | Set hover template to `'%{x}<br>%{y:.2f}<extra>%{fullData.name}</extra>'` |
-| FR-CHART-07 | Apply LTTB downsampling to maximum 4,000 points per trace |
+| FR-CHART-07 | Apply MinMaxLTTB downsampling to maximum 4,000 points per trace |
 
 ### 2.4 File Monitoring and Auto-Reload (Follow Mode)
 
@@ -217,7 +217,7 @@ The key architectural insight: **LTTB downsampling to 4,000 points means display
 | `main.py` | CLI argument parsing, file validation, port discovery, Flask server startup in background thread, pywebview window creation (blocking), graceful exit handling |
 | `csv_indexer.py` | **NEW** — Build byte-offset index for rows; provide `read_range(start_row, end_row)` API; support index updates for appended data |
 | `column_filter.py` | Dtype-based numeric filtering, NaN ratio calculation, all-NaN column removal, quality issue logging |
-| `chart_app.py` | Dash application factory, ScatterGL trace construction, LTTB downsampling, layout configuration, follow mode callbacks, zoom-resample callbacks |
+| `chart_app.py` | Dash application factory, ScatterGL trace construction, MinMaxLTTB downsampling, layout configuration, follow mode callbacks, dragmode toggle |
 | `csv_monitor.py` | Watchdog-based filesystem observation, debounced modification handling, trigger index refresh on file growth |
 | `logging_config.py` | Root logger configuration, consistent format `%(asctime)s - %(levelname)s - %(message)s` |
 
@@ -242,7 +242,7 @@ CLI Argument ─▶ File Path Validation ─▶ Build Row Index (byte offsets)
                               Read indexed row range from disk
                                                 │
                                                 ▼
-                              LTTB Downsample to ≤4,000 points
+                              MinMaxLTTB Downsample to ≤4,000 points
                                                 │
                                                 ▼
                               ScatterGL Trace Construction
@@ -267,7 +267,8 @@ Flask Server (background thread)                                          pywebv
 | `dash` | ≥3.3.0 | Web application framework for interactive visualisation |
 | `plotly` | ≥6.5.0 | Charting library with WebGL ScatterGL support |
 | `pandas` | ≥2.3.3 | DataFrame operations, CSV parsing, type inference |
-| `numpy` | ≥2.0.0 | Numerical arrays for downsampling algorithm |
+| `numpy` | ≥2.0.0 | Numerical arrays for operations |
+| `tsdownsample` | ≥0.1.4 | Rust-accelerated MinMaxLTTB downsampling |
 | `pywebview` | ≥6.1 | Native window wrapper for embedded browser |
 | `watchdog` | ≥3.0.0 | Filesystem event monitoring for follow mode |
 
@@ -433,14 +434,14 @@ Flask Server (background thread)                                          pywebv
 |-----------|--------|
 | Initial index build | <10 seconds for 10M rows |
 | Viewport slice read | <500ms for any range |
-| LTTB downsample | <100ms for 100k input points |
+| MinMaxLTTB downsample | <10ms for 100k input points (10-30× faster than pure LTTB) |
 | Zoom/pan latency | <100ms (GPU-bound, WebGL rendering) |
 
 **Downsampling Strategy:**
 
 | Aspect | Specification |
 |--------|---------------|
-| Algorithm | LTTB (Largest-Triangle-Three-Buckets) |
+| Algorithm | MinMaxLTTB (Min-Max preselection + LTTB refinement) |
 | Output limit | 4,000 points per trace |
 | Trigger | Every viewport change (zoom/pan) |
 | Input | Viewport-bounded rows from indexed file |
@@ -489,7 +490,7 @@ Flask Server (background thread)                                          pywebv
 | Display state | `dcc.Store` components serialize to client (JSON) |
 | Interval triggers | Client-side; callbacks execute server-side |
 
-### 5.5 LTTB Downsampling Edge Cases
+### 5.5 MinMaxLTTB Downsampling Edge Cases
 
 This section documents subtle behaviours when LTTB interacts with dynamic data and viewport changes.
 
