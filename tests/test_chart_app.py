@@ -4,12 +4,14 @@ import pytest
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
+from dash import no_update
 
 from csv_chart_plotter.chart_app import (
     create_traces,
     create_figure,
     create_empty_figure,
     create_layout,
+    _compute_y_range_for_x_viewport,
 )
 
 
@@ -137,3 +139,93 @@ class TestCreateLayout:
 
         assert layout.legend is not None
         assert layout.legend.orientation == "v"
+
+    def test_layout_has_yaxis_fixedrange(self):
+        """Y-axis has fixedrange=True for X-only zoom behavior."""
+        layout = create_layout(theme="light")
+
+        assert layout.yaxis.fixedrange is True
+
+
+class TestComputeYRangeForXViewport:
+    """Tests for _compute_y_range_for_x_viewport()."""
+
+    def test_computes_y_range_from_visible_data(self):
+        """Compute Y range from data within visible X range."""
+        # Create DataFrame with datetime index
+        dates = pd.date_range("2025-01-01", periods=10, freq="h")
+        df = pd.DataFrame(
+            {"value": [1, 2, 10, 4, 5, 6, 7, 8, 9, 100]},
+            index=dates,
+        )
+
+        # Current figure with layout
+        current_figure = {
+            "layout": {"yaxis": {"autorange": True}},
+            "data": [],
+        }
+
+        # Zoom to middle portion (rows 2-5 with values 10, 4, 5, 6)
+        relayout_data = {
+            "xaxis.range[0]": dates[2].isoformat(),
+            "xaxis.range[1]": dates[5].isoformat(),
+        }
+
+        result = _compute_y_range_for_x_viewport(current_figure, relayout_data, df)
+
+        assert result != no_update
+        assert "layout" in result
+        y_range = result["layout"]["yaxis"]["range"]
+        # Y range should be based on values 10, 4, 5, 6 (min=4, max=10) with padding
+        assert y_range[0] < 4  # Lower bound with padding
+        assert y_range[1] > 10  # Upper bound with padding
+
+    def test_returns_no_update_when_no_df(self):
+        """Return no_update when DataFrame is None."""
+        result = _compute_y_range_for_x_viewport({}, {}, None)
+        assert result == no_update
+
+    def test_returns_no_update_when_missing_x_range(self):
+        """Return no_update when relayout_data lacks X range."""
+        df = pd.DataFrame({"value": [1, 2, 3]})
+        result = _compute_y_range_for_x_viewport({}, {"autosize": True}, df)
+        assert result == no_update
+
+    def test_handles_xaxis_range_list_format(self):
+        """Handle alternative xaxis.range list format."""
+        dates = pd.date_range("2025-01-01", periods=5, freq="h")
+        df = pd.DataFrame({"value": [1, 5, 3, 7, 2]}, index=dates)
+
+        current_figure = {"layout": {"yaxis": {}}, "data": []}
+        relayout_data = {
+            "xaxis.range": [dates[1].isoformat(), dates[3].isoformat()],
+        }
+
+        result = _compute_y_range_for_x_viewport(current_figure, relayout_data, df)
+
+        assert result != no_update
+        y_range = result["layout"]["yaxis"]["range"]
+        # Values in range: 5, 3, 7 (min=3, max=7)
+        assert y_range[0] < 3
+        assert y_range[1] > 7
+
+    def test_handles_numeric_index(self):
+        """Handle DataFrames with numeric (non-datetime) index."""
+        df = pd.DataFrame(
+            {"value": [10, 20, 30, 40, 50]},
+            index=[0, 1, 2, 3, 4],  # Numeric index
+        )
+
+        current_figure = {"layout": {"yaxis": {}}, "data": []}
+        relayout_data = {
+            "xaxis.range[0]": "1",
+            "xaxis.range[1]": "3",
+        }
+
+        result = _compute_y_range_for_x_viewport(current_figure, relayout_data, df)
+
+        assert result != no_update
+        y_range = result["layout"]["yaxis"]["range"]
+        # Values in range [1, 3]: 20, 30, 40 (min=20, max=40)
+        assert y_range[0] < 20
+        assert y_range[1] > 40

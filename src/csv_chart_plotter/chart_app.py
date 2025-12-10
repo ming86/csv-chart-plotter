@@ -63,6 +63,7 @@ def create_app(
     app._csv_indexer = indexer
     app._csv_filepath = csv_filepath
     app._pywebview_window = None  # Set by main.py after window creation
+    app._current_df = df  # Store DataFrame for Y-axis auto-scaling on X zoom
 
     # Build initial figure
     if df is not None and not df.empty:
@@ -308,6 +309,9 @@ def create_app(
             df = app._csv_indexer.read_range(0, index.row_count)
             df_numeric = filter_numeric_columns(df)
 
+            # Update stored DataFrame for Y-axis auto-scaling
+            app._current_df = df_numeric
+
             x_values = _get_x_values(df_numeric)
             new_figure = create_figure(df_numeric, x_values, current_theme)
 
@@ -368,6 +372,9 @@ def create_app(
             df = app._csv_indexer.read_range(0, index.row_count)
             df_numeric = filter_numeric_columns(df)
 
+            # Update stored DataFrame for Y-axis auto-scaling
+            app._current_df = df_numeric
+
             x_values = _get_x_values(df_numeric)
             new_figure = create_figure(df_numeric, x_values, current_theme)
 
@@ -407,9 +414,9 @@ def create_app(
         """
         Handle viewport changes (zoom/pan).
 
-        For time-series, X-axis zoom should auto-scale Y to fit visible data.
-        This callback resets Y-axis to autorange when X changes.
-        Auto-unchecks follow mode when user manually pans/zooms (not from follow updates).
+        For time-series, both zoom and pan operate on X-axis only.
+        Y-axis auto-scales to fit data within the visible X range.
+        Auto-unchecks follow mode when user manually pans/zooms.
         """
         if relayout_data is None:
             return no_update, no_update, no_update
@@ -425,37 +432,35 @@ def create_app(
             or relayout_data.get("autosize") is True
         )
 
-        # Handle Y-axis auto-scaling on X zoom
+        # Handle Y-axis auto-scaling on X zoom/pan
         figure_update = no_update
         if x_range_changed and current_figure and not is_reset:
-            # User zoomed X-axis - reset Y to autorange
-            # This ensures Y always fits the visible X range
+            # Compute Y-axis range from data within visible X range
+            figure_update = _compute_y_range_for_x_viewport(
+                current_figure, relayout_data, app._current_df
+            )
+        elif is_reset and current_figure:
+            # Double-click reset: restore Y-axis autorange
             updated_figure = dict(current_figure)
             if "layout" in updated_figure:
                 layout = dict(updated_figure["layout"])
                 yaxis = dict(layout.get("yaxis", {}))
                 yaxis["autorange"] = True
-                # Remove any explicit range to trigger autorange
-                yaxis.pop("range", None)
+                yaxis.pop("range", None)  # Remove explicit range
                 layout["yaxis"] = yaxis
                 updated_figure["layout"] = layout
                 figure_update = updated_figure
 
         # Handle follow mode auto-pause when user manually navigates
-        # Note: We only pause if the user is interacting manually (not from follow updates)
-        # The follow_mode_update callback preserves start and extends end, so those changes
-        # won't trigger a pause because they maintain the "tailing" behavior
         status_update = no_update
         checkbox_update = no_update
         if x_range_changed and app._csv_indexer is not None and not is_reset:
             if follow_value and "follow" in follow_value:
                 # Check if user panned the START of the viewport (indicating manual navigation)
-                # If only the end changed, it might be from follow extension - don't pause
                 start_changed = "xaxis.range[0]" in relayout_data
                 if start_changed:
                     # User manually changed the start - pause follow mode
                     checkbox_update = []  # Uncheck the checkbox
-                    # Extract latest timestamp from status if present
                     if "Latest:" in current_status:
                         latest_part = current_status.split("Latest:")[-1].strip()
                         status_update = f"Paused | Latest: {latest_part}"
@@ -558,6 +563,7 @@ def create_app(
 
             # Update app state
             app._csv_indexer = indexer
+            app._current_df = df_numeric  # Store for Y-axis auto-scaling
 
             # Create figure
             x_values = _get_x_values(df_numeric)
@@ -710,9 +716,10 @@ def create_layout(theme: str = "light") -> go.Layout:
             linecolor=grid_color,
             zerolinecolor=grid_color,
             autorange=True,  # Auto-scale Y axis
+            fixedrange=True,  # Prevent box-zoom from affecting Y; we compute Y range in callback
         ),
         hovermode="x unified",
-        dragmode="zoom",  # Drag to zoom (not pan)
+        dragmode="zoom",  # Drag to zoom (X-axis only with fixedrange on Y)
     )
 
 
@@ -846,3 +853,96 @@ def _preserve_legend_state(old_figure: dict, new_figure: go.Figure) -> None:
     for trace in new_figure.data:
         if trace.name in visibility_map:
             trace.visible = visibility_map[trace.name]
+
+
+def _compute_y_range_for_x_viewport(
+    current_figure: dict,
+    relayout_data: dict,
+    df: Optional[pd.DataFrame],
+) -> dict:
+    """
+    Compute Y-axis range from data within the visible X range.
+
+    When user zooms X-axis, this function filters the source DataFrame
+    to the visible X range and computes appropriate Y bounds with padding.
+
+    Args:
+        current_figure: Current figure dictionary.
+        relayout_data: Plotly relayout data with new X range.
+        df: Source DataFrame with datetime or numeric index.
+
+    Returns:
+        Updated figure dictionary with computed Y-axis range, or no_update.
+    """
+    if df is None or df.empty:
+        return no_update
+
+    # Extract X range from relayout data
+    x_start = relayout_data.get("xaxis.range[0]")
+    x_end = relayout_data.get("xaxis.range[1]")
+
+    # Handle xaxis.range as a list (alternative format)
+    if x_start is None and "xaxis.range" in relayout_data:
+        x_range = relayout_data["xaxis.range"]
+        if isinstance(x_range, list) and len(x_range) == 2:
+            x_start, x_end = x_range
+
+    if x_start is None or x_end is None:
+        return no_update
+
+    try:
+        # Determine index type and convert bounds accordingly
+        if isinstance(df.index, pd.DatetimeIndex):
+            # Datetime index - convert string timestamps
+            x_start_val = pd.to_datetime(x_start)
+            x_end_val = pd.to_datetime(x_end)
+        else:
+            # Numeric index - convert to appropriate numeric type
+            try:
+                x_start_val = float(x_start)
+                x_end_val = float(x_end)
+            except (ValueError, TypeError):
+                # Fallback: try datetime parsing for string indices
+                x_start_val = pd.to_datetime(x_start)
+                x_end_val = pd.to_datetime(x_end)
+
+        # Filter DataFrame to visible X range
+        mask = (df.index >= x_start_val) & (df.index <= x_end_val)
+        df_visible = df.loc[mask]
+
+        if df_visible.empty:
+            return no_update
+
+        # Compute Y min/max across all visible numeric columns
+        y_min = df_visible.min().min()
+        y_max = df_visible.max().max()
+
+        if pd.isna(y_min) or pd.isna(y_max):
+            return no_update
+
+        # Add padding (5%) for visual comfort
+        y_range_span = y_max - y_min
+        if y_range_span == 0:
+            # Handle flat data - add fixed padding
+            y_padding = abs(y_max) * 0.1 if y_max != 0 else 1.0
+        else:
+            y_padding = y_range_span * 0.05
+
+        y_min_padded = y_min - y_padding
+        y_max_padded = y_max + y_padding
+
+        # Update figure with computed Y range
+        updated_figure = dict(current_figure)
+        if "layout" in updated_figure:
+            layout = dict(updated_figure["layout"])
+            yaxis = dict(layout.get("yaxis", {}))
+            yaxis["range"] = [y_min_padded, y_max_padded]
+            yaxis["autorange"] = False  # Use explicit range
+            layout["yaxis"] = yaxis
+            updated_figure["layout"] = layout
+
+        return updated_figure
+
+    except Exception as e:
+        logger.debug("Y-range computation failed: %s", e)
+        return no_update
