@@ -133,6 +133,7 @@ dependencies = [
     { name = "pandas" },
     { name = "plotly" },
     { name = "pywebview" },
+    { name = "tsdownsample" },
     { name = "watchdog" },
 ]
 
@@ -154,6 +155,7 @@ requires-dist = [
     { name = "pandas", specifier = ">=2.3.3" },
     { name = "plotly", specifier = ">=6.5.0" },
     { name = "pywebview", specifier = ">=6.1" },
+    { name = "tsdownsample", specifier = ">=0.1.4" },
     { name = "watchdog", specifier = ">=3.0.0" },
 ]
 provides-extras = ["build"]
@@ -696,6 +698,29 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/94/e7/b2c673351809dca68a0e064b6af791aa332cf192da575fd474ed7d6f16a2/six-1.17.0.tar.gz", hash = "sha256:ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81", size = 34031, upload-time = "2024-12-04T17:35:28.174Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl", hash = "sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274", size = 11050, upload-time = "2024-12-04T17:35:26.475Z" },
+]
+
+[[package]]
+name = "tsdownsample"
+version = "0.1.4.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/4b/bf/7590ae93ee6970876a79ab08602e4098a0c00db4b19f813d87935bb16607/tsdownsample-0.1.4.1.tar.gz", hash = "sha256:cc2e2fc0031a5fb75c0f5204b498e86eae0333bcc19da481c0859f1943690f3b", size = 555937, upload-time = "2025-01-29T13:13:25.185Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c5/d8/b59fde996a4371e719a2cdb8bc16990beaed737b97de71e716a186c8546a/tsdownsample-0.1.4.1-cp313-cp313-macosx_10_12_x86_64.whl", hash = "sha256:0a3dcac6f49f9543c5e12caab5b3c5ed78dafd76afeb70ea71453b5821f0fede", size = 1252057, upload-time = "2025-01-29T13:12:01.235Z" },
+    { url = "https://files.pythonhosted.org/packages/8d/6f/3f8f18fa5f4b1b899c4a81b0eadb4ba22014adc70d22f2c9eff1ba3e0c80/tsdownsample-0.1.4.1-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:2a3b690075a240478de70d512b50db165e7ef98b9e6f7d55e101146dbf3a09b1", size = 1166465, upload-time = "2025-01-29T13:12:02.866Z" },
+    { url = "https://files.pythonhosted.org/packages/53/2c/253e00fa376ca3cc8b6eb42fee144be70824e80150742d9fae5323533421/tsdownsample-0.1.4.1-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:263fd9259e8a6541d5c1e2744e90b38c8d6f98f343b03a19951fbf94fb10cb43", size = 1231028, upload-time = "2025-01-29T13:12:04.724Z" },
+    { url = "https://files.pythonhosted.org/packages/88/be/0ff315a337d176737f6ffc05af4190f8cf9d344d71b64e2eb81bb2ca7347/tsdownsample-0.1.4.1-cp313-cp313-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:2fec09afa83d162a560fb902a60ec4f5b4cbcbbe3eb595c5c75bc28571dcf03c", size = 1311979, upload-time = "2025-01-29T13:12:06.664Z" },
+    { url = "https://files.pythonhosted.org/packages/a4/31/7a572efe29e678c2bb172bf93f14a7fa14f4ecc421e36700a48447f99b96/tsdownsample-0.1.4.1-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:92629086cf799f0364e8e70996de9e3724f738ab2ab323d9228fc1275c8c0adb", size = 1325055, upload-time = "2025-01-29T13:12:08.579Z" },
+    { url = "https://files.pythonhosted.org/packages/c7/05/7c3e32662f6059b3c739c6528d3c1eece57ff3955168dc483a37a6a1b576/tsdownsample-0.1.4.1-cp313-cp313-manylinux_2_24_armv7l.whl", hash = "sha256:a917c885998c851eb1e6ca58e8f19a2f2f4e09dc6b6719bd1755bcc6247e98eb", size = 1259867, upload-time = "2025-01-29T13:12:11.362Z" },
+    { url = "https://files.pythonhosted.org/packages/b7/e6/1e97e37cc4cec3ee1e5ad1934ea75d83e41a8258686adc7b2309bf32ca84/tsdownsample-0.1.4.1-cp313-cp313-manylinux_2_24_ppc64le.whl", hash = "sha256:e93179108e9721d637151f0645e3b4f50819446e4458156103472b35ffaa026d", size = 1286896, upload-time = "2025-01-29T13:12:13.502Z" },
+    { url = "https://files.pythonhosted.org/packages/2e/bd/f93db320eb21660a443e849174423aa9324dc5cba016c096255bdc3c17a7/tsdownsample-0.1.4.1-cp313-cp313-manylinux_2_24_s390x.whl", hash = "sha256:26e74a6a9591bc52310ce16c316efe59a2443f7718188d459c5a2e5fb58883a9", size = 1445464, upload-time = "2025-01-29T13:12:15.415Z" },
+    { url = "https://files.pythonhosted.org/packages/7f/0f/2711e5e24071b55fa653b13bbbbafad08f96832d92094c3c6f3368d986a3/tsdownsample-0.1.4.1-cp313-cp313-musllinux_1_1_aarch64.whl", hash = "sha256:c3953f484205b70e7a4e8473e2cc96a3ef6a24eb6600b89980f47447cbff4492", size = 1392698, upload-time = "2025-01-29T13:12:17.836Z" },
+    { url = "https://files.pythonhosted.org/packages/07/5e/a7cce9d82017b5bbf3629acab08e58dafedd24f602b603c3c7f528bd8dd6/tsdownsample-0.1.4.1-cp313-cp313-musllinux_1_1_x86_64.whl", hash = "sha256:fd5b786931d6500938942398e0aadb44046366ac28460ea008181ea75fb6dd52", size = 1527159, upload-time = "2025-01-29T13:12:19.687Z" },
+    { url = "https://files.pythonhosted.org/packages/08/0c/49aac73ea3702bab30c6c4e29344ccfe3fcfbc20df739e3bbda4e571c258/tsdownsample-0.1.4.1-cp313-cp313-win32.whl", hash = "sha256:e7720aad79b6b76a1cdd20c2931e8e60e0465b437dc07c567d090493f39c36a5", size = 767855, upload-time = "2025-01-29T13:12:21.465Z" },
+    { url = "https://files.pythonhosted.org/packages/ab/a3/8e4b211b81559fa6ae3bb98dc08bfa68e7b5e60e5ad394da12064951e8d0/tsdownsample-0.1.4.1-cp313-cp313-win_amd64.whl", hash = "sha256:7985be2da94507bc507982c3f868b34b8bb70c84ab80ca53a9e8756ca91758c8", size = 1029209, upload-time = "2025-01-29T13:12:24.842Z" },
 ]
 
 [[package]]

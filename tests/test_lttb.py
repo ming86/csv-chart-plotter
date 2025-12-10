@@ -1,13 +1,13 @@
-"""Unit tests for LTTB downsampling module."""
+"""Unit tests for MinMaxLTTB downsampling module."""
 
 import pytest
 import numpy as np
 
-from csv_chart_plotter.lttb import lttb_downsample, downsample_dataframe
+from csv_chart_plotter.lttb import lttb_downsample, downsample_dataframe, compute_lttb_indices
 
 
-class TestLttbDownsample:
-    """Tests for lttb_downsample()."""
+class TestMinMaxLttbDownsample:
+    """Tests for lttb_downsample() via MinMaxLTTB."""
 
     def test_lttb_below_threshold_unchanged(self):
         """Return original arrays when length <= threshold."""
@@ -28,7 +28,7 @@ class TestLttbDownsample:
 
         assert len(result_x) == threshold
         assert len(result_y) == threshold
-        # First and last points always preserved
+        # First and last points always preserved by MinMaxLTTB
         assert result_x[0] == x[0]
         assert result_x[-1] == x[-1]
 
@@ -55,7 +55,7 @@ class TestLttbDownsample:
         x = np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0])
         y = np.array([1.0, np.nan, 3.0, 4.0, np.nan, 6.0, 7.0, 8.0, 9.0, 10.0])
 
-        # Should not raise
+        # Should not raise - tsdownsample handles NaN
         result_x, result_y = lttb_downsample(x, y, threshold=5)
 
         assert len(result_x) == 5
@@ -72,6 +72,31 @@ class TestLttbDownsample:
         assert result_x[-1] == 99.0
         assert result_y[0] == y[0]
         assert result_y[-1] == y[-1]
+
+    def test_lttb_minmax_ratio_parameter(self):
+        """MinMaxLTTB accepts minmax_ratio parameter."""
+        x = np.arange(1000, dtype=np.float64)
+        y = np.random.random(1000)
+
+        # Should work with different ratios
+        result_x1, result_y1 = lttb_downsample(x, y, threshold=50, minmax_ratio=2)
+        result_x2, result_y2 = lttb_downsample(x, y, threshold=50, minmax_ratio=8)
+
+        assert len(result_x1) == 50
+        assert len(result_x2) == 50
+        # Results may differ due to different preselection ratios
+
+    def test_compute_lttb_indices(self):
+        """compute_lttb_indices returns correct index array."""
+        x = np.arange(100, dtype=np.float64)
+        y = np.random.random(100)
+
+        indices = compute_lttb_indices(x, y, threshold=10)
+
+        assert isinstance(indices, np.ndarray)
+        assert len(indices) == 10
+        assert indices[0] == 0
+        assert indices[-1] == 99
 
 
 class TestDownsampleDataframe:

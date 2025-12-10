@@ -15,12 +15,13 @@ import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
 
-from .lttb import lttb_downsample, compute_lttb_indices
+from .lttb import lttb_downsample, compute_lttb_indices, DEFAULT_MINMAX_RATIO
 from .palettes import get_trace_color, LIGHT_PALETTE, DARK_PALETTE
 
 logger = logging.getLogger(__name__)
 
 MAX_DISPLAY_POINTS = 4000
+MINMAX_RATIO = DEFAULT_MINMAX_RATIO  # MinMaxLTTB preselection ratio
 FOLLOW_INTERVAL_MS = 5000
 TAIL_THRESHOLD_RATIO = 0.05
 TAIL_THRESHOLD_MAX = 100_000
@@ -86,6 +87,7 @@ def create_app(
         children=[
             # Stores for state management
             dcc.Store(id="theme-store", data=theme),
+            dcc.Store(id="dragmode-store", data="zoom"),  # Default to box-zoom
             dcc.Store(id="follow-active-store", data=follow_mode),
             dcc.Store(id="legend-state-store", data={}),
             dcc.Store(id="viewport-store", data={}),
@@ -117,6 +119,17 @@ def create_app(
                         value=theme,
                         clearable=False,
                         className="theme-dropdown",
+                    ),
+                    html.Span("Drag:", className="control-label"),
+                    dcc.Dropdown(
+                        id="dragmode-dropdown",
+                        options=[
+                            {"label": "Zoom", "value": "zoom"},
+                            {"label": "Pan", "value": "pan"},
+                        ],
+                        value="zoom",
+                        clearable=False,
+                        className="dragmode-dropdown",
                     ),
                     # Follow mode controls (visible when file is loaded)
                     html.Div(
@@ -206,6 +219,25 @@ def create_app(
         # Update figure colors for new theme
         updated_figure = _update_figure_theme(current_figure, new_theme)
         return new_theme, style, updated_figure
+
+    @app.callback(
+        Output("main-chart", "figure", allow_duplicate=True),
+        Input("dragmode-dropdown", "value"),
+        State("main-chart", "figure"),
+        prevent_initial_call=True,
+    )
+    def update_dragmode(new_dragmode: str, current_figure: dict) -> dict:
+        """Update chart drag interaction mode (zoom or pan)."""
+        if current_figure is None:
+            return no_update
+        
+        updated_figure = dict(current_figure)
+        if "layout" in updated_figure:
+            layout = dict(updated_figure["layout"])
+            layout["dragmode"] = new_dragmode
+            updated_figure["layout"] = layout
+        
+        return updated_figure
 
     @app.callback(
         Output("main-chart", "figure", allow_duplicate=True),
@@ -559,13 +591,12 @@ def create_traces(
     for i, col in enumerate(df.columns):
         y_values = df[col].to_numpy()
 
-        # Apply LTTB downsampling if needed
+        # Apply MinMaxLTTB downsampling if needed
         if len(numeric_x) > MAX_DISPLAY_POINTS:
-            # Use numeric values for LTTB calculation
-            _, y_plot = lttb_downsample(numeric_x, y_values, MAX_DISPLAY_POINTS)
-            # Get corresponding indices for display values
-            indices = compute_lttb_indices(numeric_x, y_values, MAX_DISPLAY_POINTS)
+            # Use numeric values for downsampling calculation
+            indices = compute_lttb_indices(numeric_x, y_values, MAX_DISPLAY_POINTS, MINMAX_RATIO)
             x_plot = display_x[indices]
+            y_plot = y_values[indices]
         else:
             x_plot, y_plot = display_x, y_values
 
