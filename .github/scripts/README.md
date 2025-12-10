@@ -112,8 +112,11 @@ uv run csv-chart-plotter metrics/memory-metrics-*.csv --follow
 ## Troubleshooting
 
 **"Process not found"**
+- Provide process name **without** `.exe` extension (e.g., `MyApp`, not `MyApp.exe`)
+- If you include `.exe`, the script will strip it automatically
 - Verify process name matches exactly (case-insensitive on Windows)
 - Check process is .NET Core 3.0+ or .NET 5+
+- Ensure the process is actually running before or during script execution
 
 **"Unable to connect to process"**
 - Ensure sufficient privileges (same user or administrator)

@@ -13,6 +13,9 @@ param(
     [int]$RefreshIntervalSeconds = 1
 )
 
+# Strip .exe extension if provided (Get-Process expects name without extension)
+$ProcessName = $ProcessName -replace '\.exe$', ''
+
 # Ensure output directory exists
 if (-not (Test-Path $OutputDir)) {
     New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null
@@ -24,19 +27,29 @@ $timestamp = Get-Date -Format "yyMMdd_HHmmss"
 $tempFile = Join-Path $env:TEMP "dotnet-counters-temp-$timestamp.csv"
 $outputFile = Join-Path $OutputDir "memory-metrics-$timestamp.csv"
 
-Write-Host "Waiting for process: $ProcessName"
+Write-Host "Waiting for process: $ProcessName (searching without .exe extension)"
 Write-Host "Output file: $outputFile"
+Write-Host "Tip: Launch your application now if not already running"
 Write-Host ""
 
 # Wait for process to start
+$retryCount = 0
 while ($true) {
     $process = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue
     if ($process) {
-        $pid = $process.Id
+        # Handle multiple instances (take first)
+        if ($process -is [array]) {
+            $pid = $process[0].Id
+            Write-Host "Multiple instances found. Monitoring PID: $pid"
+        } else {
+            $pid = $process.Id
+        }
         Write-Host "Process found: $ProcessName (PID: $pid)"
         break
     }
-    Write-Host "Process not found. Retrying in 2 seconds..."
+    $retryCount++
+    Write-Host "[$retryCount] Process '$ProcessName' not found. Retrying in 2 seconds..."
+    Write-Host "    Searching for: $ProcessName (without .exe)"
     Start-Sleep -Seconds 2
 }
 
