@@ -120,9 +120,16 @@ select {
 
 /* Status Text */
 .status-text {
-    margin-left: auto;
     font-size: var(--font-sm);
     color: var(--color-text-secondary);
+    white-space: nowrap;
+}
+
+/* Follow Controls */
+.follow-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
 }
 
 /* Chart Container */

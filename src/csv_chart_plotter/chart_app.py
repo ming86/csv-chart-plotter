@@ -131,7 +131,9 @@ def create_app(
                         clearable=False,
                         className="dragmode-dropdown",
                     ),
-                    # Follow mode controls (visible when file is loaded)
+                    # Spacer to push follow controls and status to the right
+                    html.Div(style={"flex": "1"}),
+                    # Follow mode controls (visible when file is loaded) - right side
                     html.Div(
                         id="follow-controls",
                         className="follow-controls",
@@ -139,13 +141,13 @@ def create_app(
                         children=[
                             dcc.Checklist(
                                 id="follow-checkbox",
-                                options=[{"label": " Follow Mode", "value": "follow"}],
+                                options=[{"label": " Follow", "value": "follow"}],
                                 value=["follow"] if follow_mode else [],
                                 className="checkbox-label",
                             ),
                         ],
                     ),
-                    # Status text (always visible, right-aligned)
+                    # Status text (right side, next to follow checkbox)
                     html.Span(
                         id="status-text",
                         className="status-text",
@@ -268,20 +270,36 @@ def create_app(
         if app._csv_indexer is None:
             return no_update, no_update, no_update
 
-        # Debounce check
+        # Debounce check (completion-based: compare against last render completion time)
         current_time = time.time()
         if current_time - last_render_time < (FOLLOW_INTERVAL_MS / 1000):
             return no_update, no_update, no_update
 
         try:
-            # Check for new data
-            new_rows = app._csv_indexer.update_index()
+            # Check for new data (handles truncation with rebuild)
+            try:
+                new_rows = app._csv_indexer.update_index()
+            except ValueError as e:
+                # File truncated - rebuild index from scratch
+                logger.warning("File truncation detected, rebuilding index: %s", e)
+                app._csv_indexer.index = None
+                app._csv_indexer.build_index()
+                new_rows = app._csv_indexer.index.row_count  # Treat as full reload
 
             if new_rows == 0:
                 logger.debug("Follow mode: no new rows")
-                return no_update, no_update, current_time
+                # Record completion time even for no-op to maintain debounce rhythm
+                return no_update, no_update, time.time()
 
             logger.info("Follow mode: %d new rows detected", new_rows)
+
+            # Extract current viewport before rebuild (for viewport extension)
+            x_range = None
+            if current_figure and "layout" in current_figure:
+                layout = current_figure.get("layout", {})
+                xaxis = layout.get("xaxis", {})
+                if "range" in xaxis:
+                    x_range = xaxis["range"]
 
             # Re-read data and rebuild figure
             from .column_filter import filter_numeric_columns
@@ -293,14 +311,28 @@ def create_app(
             x_values = _get_x_values(df_numeric)
             new_figure = create_figure(df_numeric, x_values, current_theme)
 
+            # Viewport Extension: preserve user's start time, extend end to latest
+            if x_range is not None:
+                # Get the new data's max x value for extension
+                new_x_max = df_numeric.index[-1]
+                # Format consistently with Plotly's datetime format
+                if hasattr(new_x_max, 'isoformat'):
+                    new_x_end = new_x_max.isoformat()
+                else:
+                    new_x_end = str(new_x_max)
+                # Preserve start, extend end to latest data
+                new_figure.update_layout(xaxis_range=[x_range[0], new_x_end])
+
             # Preserve legend visibility state from current figure
             if current_figure and "data" in current_figure:
                 _preserve_legend_state(current_figure, new_figure)
 
             latest_timestamp = _format_timestamp(df_numeric.index[-1])
-            status = f"Latest: {latest_timestamp}"
+            status = f"Following | Latest: {latest_timestamp}"
 
-            return new_figure, status, current_time
+            # Record completion time (after all processing) for accurate debounce
+            completion_time = time.time()
+            return new_figure, status, completion_time
 
         except Exception as e:
             logger.error("Follow mode update failed: %s", e)
@@ -377,7 +409,7 @@ def create_app(
 
         For time-series, X-axis zoom should auto-scale Y to fit visible data.
         This callback resets Y-axis to autorange when X changes.
-        Auto-unchecks follow mode when user pans away from tail.
+        Auto-unchecks follow mode when user manually pans/zooms (not from follow updates).
         """
         if relayout_data is None:
             return no_update, no_update, no_update
@@ -409,15 +441,27 @@ def create_app(
                 updated_figure["layout"] = layout
                 figure_update = updated_figure
 
-        # Handle follow mode auto-pause when user navigates away from tail
+        # Handle follow mode auto-pause when user manually navigates
+        # Note: We only pause if the user is interacting manually (not from follow updates)
+        # The follow_mode_update callback preserves start and extends end, so those changes
+        # won't trigger a pause because they maintain the "tailing" behavior
         status_update = no_update
         checkbox_update = no_update
-        if x_range_changed and app._csv_indexer is not None:
+        if x_range_changed and app._csv_indexer is not None and not is_reset:
             if follow_value and "follow" in follow_value:
-                # User was in follow mode but panned/zoomed - auto-disable follow mode
-                checkbox_update = []  # Uncheck the checkbox
-                if "Latest:" in current_status:
-                    status_update = current_status.replace("Latest:", "Paused | Latest:")
+                # Check if user panned the START of the viewport (indicating manual navigation)
+                # If only the end changed, it might be from follow extension - don't pause
+                start_changed = "xaxis.range[0]" in relayout_data
+                if start_changed:
+                    # User manually changed the start - pause follow mode
+                    checkbox_update = []  # Uncheck the checkbox
+                    # Extract latest timestamp from status if present
+                    if "Latest:" in current_status:
+                        latest_part = current_status.split("Latest:")[-1].strip()
+                        status_update = f"Paused | Latest: {latest_part}"
+                    elif "Following |" in current_status:
+                        latest_part = current_status.split("Latest:")[-1].strip()
+                        status_update = f"Paused | Latest: {latest_part}"
 
         return checkbox_update, status_update, figure_update
 
@@ -438,11 +482,18 @@ def create_app(
         is_following = follow_value and "follow" in follow_value
         
         # Update status text to reflect follow mode state
-        if current_status and "Paused |" in current_status and is_following:
-            # User re-enabled follow mode - remove "Paused" prefix
-            new_status = current_status.replace("Paused | ", "")
-        else:
-            new_status = no_update
+        new_status = no_update
+        if current_status:
+            if is_following:
+                # User enabled follow mode - update status prefix
+                if "Paused |" in current_status:
+                    new_status = current_status.replace("Paused |", "Following |")
+                elif "Latest:" in current_status and "Following" not in current_status:
+                    new_status = current_status.replace("Latest:", "Following | Latest:")
+            else:
+                # User disabled follow mode
+                if "Following |" in current_status:
+                    new_status = current_status.replace("Following |", "Paused |")
         
         # Enable interval when following, disable when not
         return not is_following, new_status
