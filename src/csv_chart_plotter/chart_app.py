@@ -452,6 +452,7 @@ def create_app(
         Output("status-text", "children", allow_duplicate=True),
         Output("reload-btn", "disabled", allow_duplicate=True),
         Output("follow-controls", "style", allow_duplicate=True),
+        Output("follow-checkbox", "value", allow_duplicate=True),
         Input("load-csv-btn", "n_clicks"),
         State("theme-dropdown", "value"),
         prevent_initial_call=True,
@@ -464,9 +465,10 @@ def create_app(
         Handle Load CSV button click.
 
         Opens native file dialog via pywebview API, loads selected file.
+        Resets follow mode to disabled state.
         """
         if n_clicks is None:
-            return no_update, no_update, no_update, no_update
+            return no_update, no_update, no_update, no_update, no_update
 
         # Access pywebview window via app reference
         window = getattr(app, "_pywebview_window", None)
@@ -485,7 +487,7 @@ def create_app(
 
             if not result or len(result) == 0:
                 logger.debug("File dialog cancelled")
-                return no_update, no_update, no_update, no_update
+                return no_update, no_update, no_update, no_update, no_update
 
             selected_path = result[0]
             logger.info("Loading file from dialog: %s", selected_path)
@@ -526,20 +528,20 @@ def create_app(
                 csv_path.name,
             )
 
-            # Enable reload button, show follow controls (now that file is loaded)
-            return new_figure, status, False, {"display": "flex"}
+            # Enable reload button, show follow controls, reset follow mode to disabled
+            return new_figure, status, False, {"display": "flex"}, []
 
         except FileNotFoundError as e:
             logger.error("File not found: %s", e)
-            return no_update, f"Error: File not found - {e}", no_update, no_update
+            return no_update, f"Error: File not found - {e}", no_update, no_update, no_update
 
         except ValueError as e:
             logger.error("Data error: %s", e)
-            return no_update, f"Error: {e}", no_update, no_update
+            return no_update, f"Error: {e}", no_update, no_update, no_update
 
         except Exception as e:
             logger.exception("Load failed: %s", e)
-            return no_update, f"Error: {e}", no_update, no_update
+            return no_update, f"Error: {e}", no_update, no_update, no_update
 
     return app
 
