@@ -512,6 +512,92 @@ def create_app(
         return checkbox_update, status_update, figure_update
 
     @app.callback(
+        Output("main-chart", "figure", allow_duplicate=True),
+        Input("main-chart", "restyleData"),
+        State("main-chart", "figure"),
+        prevent_initial_call=True,
+    )
+    def handle_legend_toggle(
+        restyle_data: list,
+        current_figure: dict,
+    ) -> dict:
+        """
+        Handle legend visibility toggle events.
+
+        When user clicks legend items to hide/show traces, recalculate
+        Y-axis range based on only the visible traces.
+        """
+        if restyle_data is None or current_figure is None:
+            return no_update
+
+        # restyleData is [changes_dict, affected_trace_indices]
+        # e.g., [{'visible': ['legendonly']}, [0]] when hiding trace 0
+        if not isinstance(restyle_data, list) or len(restyle_data) < 2:
+            return no_update
+
+        changes = restyle_data[0]
+        if not isinstance(changes, dict) or "visible" not in changes:
+            return no_update
+
+        # Legend visibility changed - recalculate Y-axis range
+        df = app._current_df
+        if df is None or df.empty:
+            return no_update
+
+        # Get current X-axis range from figure
+        layout = current_figure.get("layout", {})
+        xaxis = layout.get("xaxis", {})
+        x_range = xaxis.get("range")
+
+        if x_range and len(x_range) == 2:
+            # Construct relayout_data format for reuse of Y-range computation
+            relayout_data = {
+                "xaxis.range[0]": x_range[0],
+                "xaxis.range[1]": x_range[1],
+            }
+            return _compute_y_range_for_x_viewport(current_figure, relayout_data, df)
+        else:
+            # No explicit X range - compute from full data
+            # Determine visible columns from current figure (with updated visibility)
+            visible_columns = []
+            for trace in current_figure.get("data", []):
+                trace_name = trace.get("name")
+                trace_visible = trace.get("visible", True)
+                if trace_name and trace_visible is True:
+                    visible_columns.append(trace_name)
+
+            columns_to_use = [col for col in visible_columns if col in df.columns]
+            if not columns_to_use:
+                return no_update
+
+            df_filtered = df[columns_to_use]
+            y_min = df_filtered.min().min()
+            y_max = df_filtered.max().max()
+
+            if pd.isna(y_min) or pd.isna(y_max):
+                return no_update
+
+            y_range_span = y_max - y_min
+            if y_range_span == 0:
+                y_padding = abs(y_max) * 0.1 if y_max != 0 else 1.0
+            else:
+                y_padding = y_range_span * 0.05
+
+            y_min_padded = y_min - y_padding
+            y_max_padded = y_max + y_padding
+
+            updated_figure = dict(current_figure)
+            if "layout" in updated_figure:
+                layout = dict(updated_figure["layout"])
+                yaxis = dict(layout.get("yaxis", {}))
+                yaxis["range"] = [y_min_padded, y_max_padded]
+                yaxis["autorange"] = False
+                layout["yaxis"] = yaxis
+                updated_figure["layout"] = layout
+
+            return updated_figure
+
+    @app.callback(
         Output("follow-interval", "disabled"),
         Output("status-text", "children", allow_duplicate=True),
         Input("follow-checkbox", "value"),
@@ -906,6 +992,8 @@ def _compute_y_range_for_x_viewport(
 
     When user zooms X-axis, this function filters the source DataFrame
     to the visible X range and computes appropriate Y bounds with padding.
+    Only considers columns whose traces are currently visible (not hidden
+    via legend toggle).
 
     Args:
         current_figure: Current figure dictionary.
@@ -954,9 +1042,27 @@ def _compute_y_range_for_x_viewport(
         if df_visible.empty:
             return no_update
 
-        # Compute Y min/max across all visible numeric columns
-        y_min = df_visible.min().min()
-        y_max = df_visible.max().max()
+        # Determine which columns are visible based on legend state
+        # Plotly trace visibility: True, 'legendonly', or undefined (defaults to True)
+        visible_columns = []
+        for trace in current_figure.get("data", []):
+            trace_name = trace.get("name")
+            trace_visible = trace.get("visible", True)
+            # 'legendonly' means hidden via legend click; True or undefined means visible
+            if trace_name and trace_visible is True:
+                visible_columns.append(trace_name)
+
+        # Filter to only visible columns that exist in DataFrame
+        columns_to_use = [col for col in visible_columns if col in df_visible.columns]
+
+        if not columns_to_use:
+            # No visible columns - cannot compute range
+            return no_update
+
+        # Compute Y min/max across only visible columns
+        df_filtered = df_visible[columns_to_use]
+        y_min = df_filtered.min().min()
+        y_max = df_filtered.max().max()
 
         if pd.isna(y_min) or pd.isna(y_max):
             return no_update

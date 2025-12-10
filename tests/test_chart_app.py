@@ -159,10 +159,10 @@ class TestComputeYRangeForXViewport:
             index=dates,
         )
 
-        # Current figure with layout
+        # Current figure with layout and trace visibility
         current_figure = {
             "layout": {"yaxis": {"autorange": True}},
-            "data": [],
+            "data": [{"name": "value", "visible": True}],
         }
 
         # Zoom to middle portion (rows 2-5 with values 10, 4, 5, 6)
@@ -196,7 +196,10 @@ class TestComputeYRangeForXViewport:
         dates = pd.date_range("2025-01-01", periods=5, freq="h")
         df = pd.DataFrame({"value": [1, 5, 3, 7, 2]}, index=dates)
 
-        current_figure = {"layout": {"yaxis": {}}, "data": []}
+        current_figure = {
+            "layout": {"yaxis": {}},
+            "data": [{"name": "value", "visible": True}],
+        }
         relayout_data = {
             "xaxis.range": [dates[1].isoformat(), dates[3].isoformat()],
         }
@@ -216,7 +219,10 @@ class TestComputeYRangeForXViewport:
             index=[0, 1, 2, 3, 4],  # Numeric index
         )
 
-        current_figure = {"layout": {"yaxis": {}}, "data": []}
+        current_figure = {
+            "layout": {"yaxis": {}},
+            "data": [{"name": "value", "visible": True}],
+        }
         relayout_data = {
             "xaxis.range[0]": "1",
             "xaxis.range[1]": "3",
@@ -229,3 +235,54 @@ class TestComputeYRangeForXViewport:
         # Values in range [1, 3]: 20, 30, 40 (min=20, max=40)
         assert y_range[0] < 20
         assert y_range[1] > 40
+
+    def test_excludes_hidden_traces_from_y_range(self):
+        """Y-axis range should only consider visible traces, not hidden ones."""
+        dates = pd.date_range("2025-01-01", periods=5, freq="h")
+        df = pd.DataFrame(
+            {
+                "small": [1, 2, 3, 4, 5],  # Small values
+                "large": [100, 200, 300, 400, 500],  # Large values - hidden
+            },
+            index=dates,
+        )
+
+        # 'large' trace is hidden via legendonly
+        current_figure = {
+            "layout": {"yaxis": {}},
+            "data": [
+                {"name": "small", "visible": True},
+                {"name": "large", "visible": "legendonly"},  # Hidden
+            ],
+        }
+        relayout_data = {
+            "xaxis.range[0]": dates[0].isoformat(),
+            "xaxis.range[1]": dates[4].isoformat(),
+        }
+
+        result = _compute_y_range_for_x_viewport(current_figure, relayout_data, df)
+
+        assert result != no_update
+        y_range = result["layout"]["yaxis"]["range"]
+        # Y range should be based only on 'small' column (1-5)
+        # NOT include 'large' column (100-500)
+        assert y_range[0] < 1  # Lower bound with padding
+        assert y_range[1] > 5  # Upper bound with padding
+        assert y_range[1] < 50  # Should NOT extend to 500
+
+    def test_returns_no_update_when_all_traces_hidden(self):
+        """Return no_update when all traces are hidden via legend."""
+        dates = pd.date_range("2025-01-01", periods=5, freq="h")
+        df = pd.DataFrame({"value": [1, 2, 3, 4, 5]}, index=dates)
+
+        current_figure = {
+            "layout": {"yaxis": {}},
+            "data": [{"name": "value", "visible": "legendonly"}],  # All hidden
+        }
+        relayout_data = {
+            "xaxis.range[0]": dates[0].isoformat(),
+            "xaxis.range[1]": dates[4].isoformat(),
+        }
+
+        result = _compute_y_range_for_x_viewport(current_figure, relayout_data, df)
+        assert result == no_update
