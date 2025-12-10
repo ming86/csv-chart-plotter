@@ -249,6 +249,7 @@ def create_app(
         Input("follow-interval", "n_intervals"),
         State("follow-checkbox", "value"),
         State("theme-dropdown", "value"),
+        State("dragmode-dropdown", "value"),
         State("main-chart", "figure"),
         State("last-render-time-store", "data"),
         prevent_initial_call=True,
@@ -257,10 +258,19 @@ def create_app(
         n_intervals: int,
         follow_value: list,
         current_theme: str,
+        current_dragmode: str,
         current_figure: dict,
         last_render_time: float,
     ) -> tuple:
-        """Handle follow mode data refresh."""
+        """
+        Handle follow mode data refresh.
+
+        Viewport behavior depends on the current drag mode:
+        - Pan mode: Keep the time window width constant and slide the viewport
+          to show the latest data (both start and end times shift equally).
+        - Zoom mode: Preserve the start time, extend the end time to include
+          the latest data point.
+        """
         import time
 
         # Skip if follow mode not active
@@ -315,17 +325,48 @@ def create_app(
             x_values = _get_x_values(df_numeric)
             new_figure = create_figure(df_numeric, x_values, current_theme)
 
-            # Viewport Extension: preserve user's start time, extend end to latest
+            # Viewport behavior depends on dragmode:
+            # - Pan mode: Keep window width constant, slide to latest data
+            # - Zoom mode: Preserve start time, extend end to latest data
             if x_range is not None:
-                # Get the new data's max x value for extension
+                # Get the new data's max x value
                 new_x_max = df_numeric.index[-1]
                 # Format consistently with Plotly's datetime format
                 if hasattr(new_x_max, 'isoformat'):
                     new_x_end = new_x_max.isoformat()
                 else:
                     new_x_end = str(new_x_max)
-                # Preserve start, extend end to latest data
-                new_figure.update_layout(xaxis_range=[x_range[0], new_x_end])
+
+                if current_dragmode == "pan":
+                    # Pan mode: maintain time window width, slide to latest
+                    # Calculate window duration from current viewport
+                    try:
+                        x_start_ts = pd.to_datetime(x_range[0])
+                        x_end_ts = pd.to_datetime(x_range[1])
+                        window_duration = x_end_ts - x_start_ts
+
+                        # Slide window: new_end = latest, new_start = latest - duration
+                        new_x_end_ts = pd.to_datetime(new_x_max)
+                        new_x_start_ts = new_x_end_ts - window_duration
+
+                        # Format for Plotly
+                        if hasattr(new_x_start_ts, 'isoformat'):
+                            new_x_start = new_x_start_ts.isoformat()
+                        else:
+                            new_x_start = str(new_x_start_ts)
+
+                        new_figure.update_layout(xaxis_range=[new_x_start, new_x_end])
+                        logger.debug(
+                            "Follow pan mode: window [%s - %s], duration preserved",
+                            new_x_start, new_x_end
+                        )
+                    except Exception as e:
+                        # Fallback to zoom behavior on parse error
+                        logger.debug("Pan mode duration calc failed, using zoom behavior: %s", e)
+                        new_figure.update_layout(xaxis_range=[x_range[0], new_x_end])
+                else:
+                    # Zoom mode (default): preserve start, extend end to latest
+                    new_figure.update_layout(xaxis_range=[x_range[0], new_x_end])
 
             # Preserve legend visibility state from current figure
             if current_figure and "data" in current_figure:
