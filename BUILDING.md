@@ -9,10 +9,12 @@ Instructions for compiling CSV Chart Plotter to a standalone executable using Nu
 1. **Python 3.13+** (via UV)
 2. **C Compiler:**
    - **macOS:** Xcode Command Line Tools (`xcode-select --install`)
-   - **Windows:** Visual Studio Build Tools 2022 with:
+   - **Windows:** [Visual Studio Build Tools 2026](https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2026) with:
      - "Desktop development with C++" workload
      - Windows XX SDK (from Individual Components)
    - **Linux:** GCC (`sudo apt install build-essential`)
+   
+   > **Windows Installation:** Download Build Tools from the link above, run the installer, select "Desktop development with C++" workload, then go to Individual Components tab and check the latest Windows SDK (e.g., Windows 11 SDK 10.0.22621).
 
 3. **Nuitka:**
 
@@ -39,7 +41,7 @@ cl.exe
 - Python 3.13 requires MSVC (MinGW not supported due to internal layout changes)
 - Windows SDK must be installed alongside MSVC
 - Standard `cmd.exe` or PowerShell will not have MSVC in PATH
-- Always use "Developer Command Prompt for VS 2022" from Start Menu
+- Always use "Developer Command Prompt for VS 2026" from Start Menu
 
 ## Build Process
 
@@ -95,12 +97,14 @@ Executable created: dist/csv-chart-plotter
 
 **Solution:**
 
-1. Open "Visual Studio Installer"
-2. Click "Modify" on Build Tools 2022
+1. Open "Visual Studio Installer" (from Start Menu)
+2. Click "Modify" on "Build Tools for Visual Studio 2026"
 3. Go to "Individual components" tab
 4. Search for "Windows SDK"
-5. Check latest Windows XX SDK
-6. Click "Modify" to install
+5. Check latest "Windows XX SDK" (e.g., Windows 11 SDK 10.0.22621)
+6. Click "Modify" to install (~1-2 GB download)
+
+**If Build Tools not installed:** Download from [visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2026](https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2026)
 
 ### "The system cannot find the path specified" (Windows)
 
@@ -113,7 +117,7 @@ Executable created: dist/csv-chart-plotter
 1. **Verify Windows SDK is installed** (see above)
 
 2. **Use Developer Command Prompt:**
-   - Start Menu → search "Developer Command Prompt for VS 2022"
+   - Start Menu → search "Developer Command Prompt for VS 2026"
    - Navigate to project: `cd C:\path\to\csv-chart-plotter`
    - Run build: `uv run build.py`
 
