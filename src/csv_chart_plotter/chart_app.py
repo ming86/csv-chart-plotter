@@ -171,7 +171,7 @@ def create_app(
                             "displaylogo": False,
                             "scrollZoom": True,
                         },
-                        style={"height": "100%"},
+                        style={"flex": "1", "minHeight": "0"},
                     ),
                 ]
                 if has_data

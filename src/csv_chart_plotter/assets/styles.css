@@ -50,14 +50,17 @@ body {
     padding: 0;
 }
 
-/* App Container */
+/* App Container - Flexbox layout for fixed viewport */
 .app-container {
-    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
     background-color: var(--color-base);
     color: var(--color-text-primary);
 }
 
-/* Control Bar */
+/* Control Bar - Fixed toolbar, never scrolls */
 .control-bar {
     display: flex;
     align-items: center;
@@ -65,7 +68,7 @@ body {
     padding: var(--spacing-sm) var(--spacing-md);
     background-color: var(--color-surface);
     border-bottom: 1px solid var(--color-border);
-    height: 30px;
+    flex-shrink: 0;
 }
 
 /* Buttons */
@@ -132,20 +135,24 @@ select {
     gap: var(--spacing-xs);
 }
 
-/* Chart Container */
+/* Chart Container - Fills remaining space */
 .chart-container {
-    height: calc(100vh - 50px); /* Full height minus control bar */
+    flex: 1;
+    min-height: 0; /* Required for flex child to shrink below content size */
+    overflow: hidden;
     padding: var(--spacing-md);
     background-color: var(--color-base);
+    display: flex;
+    flex-direction: column;
 }
 
-/* Empty State */
+/* Empty State - Fills chart container */
 .empty-state {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    height: calc(100vh - 50px);
+    flex: 1;
     color: var(--color-text-secondary);
     font-size: var(--font-lg);
 }
