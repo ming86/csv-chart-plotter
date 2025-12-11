@@ -610,12 +610,18 @@ python build.py
 - `--include-data-dir=src/csv_chart_plotter/assets=csv_chart_plotter/assets` — Bundle CSS
 - `--nofollow-import-to=pytest,unittest` — Exclude test frameworks
 - `--windows-console-mode=disable` — GUI-only (no console window on Windows)
+- `--msvc=latest` — Force latest MSVC detection (required for Python 3.13)
+- `--jobs=1` — Disable parallel compilation (prevents SCons environment issues)
 
 **Cross-platform notes:**
 
 - Must build on target platform (no cross-compilation)
-- Windows: requires MSVC compiler
-- macOS/Linux: untested but likely requires pywebview platform dependencies
+- Windows: requires MSVC with Windows SDK (Python 3.13 requirement; MinGW not supported)
+- macOS/Linux: requires platform-specific pywebview dependencies
+
+**Important Build flags:**
+- `--msvc=latest` — Use newest MSVC (helps SCons detection)
+- `--jobs=1` — Disable parallel compilation (avoids threading environment issues)
 
 ## Reference Index
 
