@@ -25,10 +25,14 @@ uv run python -m nuitka --version
 
 # Check compiler (macOS/Linux)
 gcc --version
+clang --version
 
 # Check compiler (Windows)
+# Must run from "Developer Command Prompt for VS 2022"
 cl.exe
 ```
+
+**Critical for Windows:** Standard `cmd.exe` or PowerShell will not have MSVC in PATH. Always use the "Developer Command Prompt for VS 2022" installed with Visual Studio Build Tools.
 
 ## Build Process
 
@@ -39,6 +43,7 @@ python build.py
 ```
 
 **Expected Output:**
+
 ```text
 === CSV Chart Plotter Build Script ===
 Nuitka version: 2.x.x
@@ -50,6 +55,7 @@ Executable created: dist/csv-chart-plotter
 ```
 
 **Duration:**
+
 - First build: 5-15 minutes
 - Subsequent builds: 2-5 minutes (cached modules)
 
@@ -76,7 +82,35 @@ Executable created: dist/csv-chart-plotter
 
 ## Troubleshooting
 
-### "No C compiler found"
+### "The system cannot find the path specified" (Windows)
+
+**Symptom:** Nuitka compilation fails during SCons backend setup with `OSError: The system cannot find the path specified`.
+
+**Root Cause:** MSVC compiler (cl.exe) not in PATH. Standard command prompts do not include Visual Studio paths.
+
+**Solution:**
+
+1. **Install Visual Studio Build Tools** (if not already installed):
+   - Download: <https://visualstudio.microsoft.com/downloads/>
+   - Select "Build Tools for Visual Studio 2022"
+   - During installation wizard, check: **"Desktop development with C++"**
+   - Complete installation (requires ~7 GB disk space)
+
+2. **Use Developer Command Prompt:**
+   - Start Menu → search "Developer Command Prompt for VS 2022"
+   - Navigate to project: `cd C:\path\to\csv-chart-plotter`
+   - Run build: `uv run build.py`
+
+3. **Verify MSVC availability:**
+
+   ```cmd
+   cl.exe
+   # Should output: Microsoft (R) C/C++ Optimizing Compiler Version...
+   ```
+
+**Alternative:** Add MSVC to PATH permanently via `vcvarsall.bat`, but Developer Command Prompt is recommended for reliability.
+
+### "No C compiler found" (macOS/Linux)
 
 Install compiler for your platform:
 
@@ -86,8 +120,6 @@ xcode-select --install
 
 # Ubuntu/Debian
 sudo apt install build-essential
-
-# Windows - Install Visual Studio Build Tools
 ```
 
 ### "Module X not found"
@@ -179,5 +211,5 @@ jobs:
 
 ## Support
 
-- Nuitka documentation: https://nuitka.net/doc/
-- Project issues: https://github.com/yourusername/csv-chart-plotter/issues
+- Nuitka documentation: <https://nuitka.net/doc/>
+- Project issues: <https://github.com/yourusername/csv-chart-plotter/issues>

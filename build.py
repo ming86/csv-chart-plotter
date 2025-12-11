@@ -51,6 +51,68 @@ def check_nuitka() -> bool:
         return False
 
 
+def check_compiler() -> bool:
+    """Verify C compiler is available for Nuitka compilation."""
+    if sys.platform == 'win32':
+        # Check for MSVC (cl.exe)
+        try:
+            result = subprocess.run(
+                ['cl.exe'],
+                capture_output=True,
+                text=True,
+                check=False
+            )
+            if 'Microsoft' in result.stderr:
+                logger.info("MSVC compiler detected")
+                return True
+        except FileNotFoundError:
+            pass
+        
+        logger.error("MSVC compiler not found.")
+        logger.error("")
+        logger.error("Install Visual Studio Build Tools:")
+        logger.error("  1. Download from: https://visualstudio.microsoft.com/downloads/")
+        logger.error("  2. Select 'Build Tools for Visual Studio 2022'")
+        logger.error("  3. Check 'Desktop development with C++'")
+        logger.error("")
+        logger.error("Then run build from 'Developer Command Prompt for VS 2022'")
+        return False
+    
+    elif sys.platform == 'darwin':
+        # Check for Clang (macOS)
+        try:
+            result = subprocess.run(
+                ['clang', '--version'],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            if 'clang' in result.stdout.lower():
+                logger.info("Clang compiler detected")
+                return True
+        except (FileNotFoundError, subprocess.CalledProcessError):
+            logger.error("Clang not found. Install: xcode-select --install")
+            return False
+    
+    else:
+        # Check for GCC (Linux)
+        try:
+            result = subprocess.run(
+                ['gcc', '--version'],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            if 'gcc' in result.stdout.lower():
+                logger.info("GCC compiler detected")
+                return True
+        except (FileNotFoundError, subprocess.CalledProcessError):
+            logger.error("GCC not found. Install: sudo apt install build-essential")
+            return False
+    
+    return False
+
+
 def clean_dist() -> None:
     """Remove previous build artifacts."""
     dist_dir = Path('dist')
@@ -133,6 +195,9 @@ def main() -> int:
     
     # Pre-flight checks
     if not check_nuitka():
+        return 1
+    
+    if not check_compiler():
         return 1
     
     # Clean previous builds
