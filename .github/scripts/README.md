@@ -112,6 +112,7 @@ uv run csv-chart-plotter metrics/memory-metrics-*.csv --follow
 ## Troubleshooting
 
 **"Process not found"**
+
 - Provide process name **without** `.exe` extension (e.g., `MyApp`, not `MyApp.exe`)
 - If you include `.exe`, the script will strip it automatically
 - Verify process name matches exactly (case-insensitive on Windows)
@@ -119,14 +120,17 @@ uv run csv-chart-plotter metrics/memory-metrics-*.csv --follow
 - Ensure the process is actually running before or during script execution
 
 **"Unable to connect to process"**
+
 - Ensure sufficient privileges (same user or administrator)
 - Verify EventPipe is enabled (default in .NET Core 3.0+)
 
 **Empty CSV file**
+
 - Process exited too quickly (before first sample)
 - Increase `RefreshIntervalSeconds` if too much overhead
 
 **High overhead**
+
 - Reduce refresh frequency (increase `RefreshIntervalSeconds`)
 - Typical overhead: <2% CPU with 1-second interval
 
