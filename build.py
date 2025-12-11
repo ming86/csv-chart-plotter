@@ -150,8 +150,16 @@ def build_executable() -> int:
         '--windows-console-mode=disable',  # No console window on Windows
         '--output-dir=dist',  # Output directory
         '--output-filename=csv-chart-plotter.exe',  # Executable name
-        'src/csv_chart_plotter/main.py',  # Entry point
     ]
+    
+    # Platform-specific compiler flags
+    if sys.platform == 'win32':
+        cmd.extend([
+            '--msvc=latest',  # Use newest MSVC (helps SCons detection)
+            '--jobs=1',  # Disable parallel compilation (avoids threading environment issues)
+        ])
+    
+    cmd.append('src/csv_chart_plotter/main.py')  # Entry point
     
     logger.info("Nuitka command:")
     logger.info(" ".join(cmd))

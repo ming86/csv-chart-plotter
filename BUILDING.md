@@ -13,6 +13,7 @@ Instructions for compiling CSV Chart Plotter to a standalone executable using Nu
    - **Linux:** GCC (`sudo apt install build-essential`)
 
 3. **Nuitka:**
+
    ```bash
    uv add --dev nuitka
    ```
@@ -86,7 +87,7 @@ Executable created: dist/csv-chart-plotter
 
 **Symptom:** Nuitka compilation fails during SCons backend setup with `OSError: The system cannot find the path specified`.
 
-**Root Cause:** MSVC compiler (cl.exe) not in PATH. Standard command prompts do not include Visual Studio paths.
+**Root Cause:** Either MSVC not in PATH, or SCons worker threads cannot inherit MSVC environment during parallel compilation.
 
 **Solution:**
 
@@ -107,6 +108,8 @@ Executable created: dist/csv-chart-plotter
    cl.exe
    # Should output: Microsoft (R) C/C++ Optimizing Compiler Version...
    ```
+
+**If error persists after verification:** The build script automatically applies workarounds (`--msvc=latest`, `--jobs=1`) to address SCons environment inheritance issues in parallel compilation. This makes compilation slower but more reliable.
 
 **Alternative:** Add MSVC to PATH permanently via `vcvarsall.bat`, but Developer Command Prompt is recommended for reliability.
 
