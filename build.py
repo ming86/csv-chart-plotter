@@ -1,7 +1,7 @@
 """
 Nuitka build script for CSV Chart Plotter standalone executable.
 
-Compiles Python application to native Windows executable with all dependencies
+Compiles Python application to native executable with all dependencies
 bundled. No Python installation required on target system.
 
 Usage:
@@ -11,9 +11,12 @@ Output:
     dist/csv-chart-plotter.exe (standalone executable)
 
 Requirements:
-    - Nuitka installed: uv add --optional nuitka
-    - C compiler available (MSVC, MinGW, or Clang)
-    - Windows OS (for .exe generation)
+    - Nuitka installed: uv add --dev nuitka
+    - Windows: MSVC (Visual Studio Build Tools) with Windows SDK
+    - macOS: Xcode Command Line Tools
+    - Linux: GCC build-essential
+
+NOTE: Python 3.13 requires MSVC on Windows (MinGW not supported)
 """
 
 import logging
@@ -54,7 +57,7 @@ def check_nuitka() -> bool:
 def check_compiler() -> bool:
     """Verify C compiler is available for Nuitka compilation."""
     if sys.platform == 'win32':
-        # Check for MSVC (cl.exe)
+        # Check for MSVC (required for Python 3.13)
         try:
             result = subprocess.run(
                 ['cl.exe'],
@@ -74,6 +77,8 @@ def check_compiler() -> bool:
         logger.error("  1. Download from: https://visualstudio.microsoft.com/downloads/")
         logger.error("  2. Select 'Build Tools for Visual Studio 2022'")
         logger.error("  3. Check 'Desktop development with C++'")
+        logger.error("  4. IMPORTANT: In 'Individual components', also check:")
+        logger.error("     - 'Windows XX SDK' (latest version)")
         logger.error("")
         logger.error("Then run build from 'Developer Command Prompt for VS 2022'")
         return False
@@ -155,8 +160,8 @@ def build_executable() -> int:
     # Platform-specific compiler flags
     if sys.platform == 'win32':
         cmd.extend([
-            '--msvc=latest',  # Use newest MSVC (helps SCons detection)
-            '--jobs=1',  # Disable parallel compilation (avoids threading environment issues)
+            '--msvc=latest',  # Force latest MSVC detection (required for Python 3.13)
+            '--jobs=1',  # Disable parallel compilation (prevents SCons environment inheritance issues)
         ])
     
     cmd.append('src/csv_chart_plotter/main.py')  # Entry point
