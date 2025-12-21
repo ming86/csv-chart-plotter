@@ -10,13 +10,14 @@ import socket
 import sys
 import threading
 from pathlib import Path
-from typing import Any, Optional
-
-import webview
+from typing import Any, Optional, TYPE_CHECKING
 
 from .logging_config import configure_logging
-from .csv_indexer import CSVIndexer
-from .column_filter import filter_numeric_columns
+
+# Defer heavy imports (pandas, numpy, plotly, webview) until after CLI parsing
+if TYPE_CHECKING:
+    import webview
+    from .csv_indexer import CSVIndexer
 
 logger = logging.getLogger(__name__)
 
@@ -177,8 +178,11 @@ def main() -> int:
     args = parser.parse_args()
 
     try:
-        # Import chart_app here to defer import until after logging configured
+        # Defer heavy imports until after CLI parsing to reduce perceived startup time
+        import webview
         from .chart_app import create_app
+        from .csv_indexer import CSVIndexer
+        from .column_filter import filter_numeric_columns
 
         csv_path: Optional[Path] = None
         window_title = "CSV Chart Plotter"
